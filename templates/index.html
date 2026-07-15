@@ -5,6 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flanki App - Wersja PRO</title>
     <style>
+        .radio-panel { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px; }
+        .radio-label {
+            background-color: var(--bg-base);
+            border: 1px solid var(--bg-surface-hover);
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+            flex-grow: 1;
+            justify-content: center;
+        }
+        .radio-label:hover { border-color: var(--accent-blue); color: var(--text-main); }
+        .radio-label input[type="radio"] { width: auto; margin: 0; accent-color: var(--accent-blue); cursor: pointer; }
+
         :root {
             --bg-base: #1e1e2e; --bg-surface: #313244; --bg-surface-hover: #45475a;
             --text-main: #cdd6f4; --text-muted: #a6adc8; --accent-blue: #89b4fa;
@@ -15,7 +34,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
 
-        /* Sidebar & Topbar */
         .sidebar { width: 250px; background-color: var(--bg-surface); padding: 20px; display: flex; flex-direction: column; gap: 15px; border-right: 1px solid var(--bg-surface-hover); }
         .sidebar h1 { font-size: 24px; color: var(--accent-blue); margin-bottom: 20px; text-align: center; letter-spacing: 2px; }
         .nav-btn { background: transparent; color: var(--text-muted); border: none; padding: 12px 15px; text-align: left; font-size: 16px; font-weight: 600; border-radius: var(--border-radius); cursor: pointer; transition: var(--transition); }
@@ -27,7 +45,6 @@
         .btn-logout { background-color: var(--accent-red); color: #11111b; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; display: none; }
         .btn-logout:hover { background-color: #ffb4c9; }
 
-        /* Views & Cards */
         .view-section { padding: 30px; overflow-y: auto; display: none; animation: fadeIn 0.4s ease; }
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -35,7 +52,6 @@
         .card { background-color: var(--bg-surface); padding: 25px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 600px; margin-left: auto; margin-right: auto; }
         .card h2 { margin-bottom: 20px; font-size: 20px; color: var(--accent-blue); border-bottom: 1px solid var(--bg-surface-hover); padding-bottom: 10px; }
         
-        /* Formularze i podgląd hasła */
         .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; position: relative; }
         .form-group label { font-size: 14px; color: var(--text-muted); }
         input { padding: 12px; border-radius: 8px; border: 1px solid var(--bg-surface-hover); background-color: var(--bg-base); color: var(--text-main); font-size: 15px; width: 100%; }
@@ -49,7 +65,6 @@
         .btn.danger { background-color: var(--accent-red); }
         .btn.danger:hover { background-color: #ffb4c9; }
 
-        /* Profil i Listy */
         .profile-stat { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--bg-surface-hover); }
         .profile-stat span:first-child { color: var(--text-muted); }
         .profile-stat span:last-child { font-weight: bold; color: var(--accent-blue); }
@@ -57,7 +72,6 @@
         .players-list { list-style: none; margin-top: 15px; }
         .player-item { background-color: var(--bg-base); padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--accent-blue); }
 
-        /* Toasts */
         #toast { position: fixed; bottom: 30px; right: 30px; background-color: var(--bg-surface); color: var(--text-main); padding: 15px 25px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.4); border-left: 5px solid var(--accent-blue); transform: translateX(150%); transition: transform 0.3s ease; z-index: 1000; }
         #toast.show { transform: translateX(0); }
         #toast.error { border-left-color: var(--accent-red); }
@@ -67,17 +81,22 @@
 <body>
 
     <nav class="sidebar">
-        <h1>FLANKI APP</h1>
-        <div id="nav-unauth">
-            <button class="nav-btn active" onclick="switchView('view-login')" id="nav-login">🔑 Logowanie</button>
-            <button class="nav-btn" onclick="switchView('view-register')" id="nav-register">📝 Rejestracja</button>
-        </div>
-        <div id="nav-auth" style="display: none; flex-direction: column; gap: 15px;">
-            <button class="nav-btn" onclick="switchView('view-leaderboard')" id="nav-leaderboard">🏆 Ranking</button>
-            <button class="nav-btn" onclick="switchView('view-profile')" id="nav-profile">👤 Mój Profil</button>
-            <button class="nav-btn" onclick="switchView('view-home')" id="nav-home">🏠 Szukaj Gry</button>
-            <button class="nav-btn" onclick="switchView('view-lobby')" id="nav-lobby">🎮 Aktywne Lobby</button>
-        </div>
+    <h1>FLANKI APP</h1>
+    
+    <!-- Nowy guzik widoczny dla każdego -->
+    <button class="nav-btn" onclick="switchView('view-rules')" id="nav-rules">📖 Zasady Gry</button>
+    <hr style="border: 0; border-top: 1px solid var(--bg-surface-hover); margin: 10px 0;">
+
+    <div id="nav-unauth">
+        <button class="nav-btn active" onclick="switchView('view-login')" id="nav-login">🔑 Logowanie</button>
+        <button class="nav-btn" onclick="switchView('view-register')" id="nav-register">📝 Rejestracja</button>
+    </div>
+    <div id="nav-auth" style="display: none; flex-direction: column; gap: 15px;">
+        <button class="nav-btn" onclick="switchView('view-leaderboard')" id="nav-leaderboard">🏆 Ranking</button>
+        <button class="nav-btn" onclick="switchView('view-profile')" id="nav-profile">👤 Mój Profil</button>
+        <button class="nav-btn" onclick="switchView('view-home')" id="nav-home">🏠 Szukaj Gry</button>
+        <button class="nav-btn" onclick="switchView('view-lobby')" id="nav-lobby">🎮 Aktywne Lobby</button>
+    </div>
     </nav>
 
     <main class="main-content">
@@ -86,23 +105,60 @@
             <button class="btn-logout" id="logoutBtn" onclick="logout()">Wyloguj</button>
         </header>
 
+        <section id="view-rules" class="view-section">
+            <div class="card" style="max-width: 800px;">
+                <h2>📖 Oficjalne Zasady Gry we Flanki</h2>
+                
+                <h3 style="color: var(--accent-blue); margin-top: 15px; margin-bottom: 5px;">🎯 Cel gry</h3>
+                <p style="line-height: 1.5;">Wygrywa drużyna, w której <strong>wszyscy gracze jako pierwsi skończą swoje piwo</strong>!</p>
+                
+                <h3 style="color: var(--accent-blue); margin-top: 20px; margin-bottom: 5px;">👥 Drużyny i Sprzęt</h3>
+                <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                    <li>Minimum <strong>2 graczy</strong> na drużynę. Nie wolno zmieniać graczy w trakcie trwania rozgrywki!</li>
+                    <li>Gra się <strong>gumową kaczką</strong> 🦆 (ewentualnie dobrze ściśniętą, pustą puszką).</li>
+                </ul>
+
+                <h3 style="color: var(--accent-blue); margin-top: 20px; margin-bottom: 5px;">🏁 Rozpoczęcie (Komis)</h3>
+                <p style="line-height: 1.5;">Przed startem następuje tzw. <strong>komis</strong>, czyli jednoczesne otworzenie piw przez wszystkich graczy. Wolno wtedy jedynie spić "uciekającą piankę" – nic więcej!</p>
+
+                <h3 style="color: var(--accent-blue); margin-top: 20px; margin-bottom: 5px;">⚔️ Przebieg rozgrywki (Co, kiedy i jak)</h3>
+                <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                    <li>Rzuca się <strong>po kolei</strong> (naprzemiennie drużynami).</li>
+                    <li>Gdy trafisz i zbijesz środkową puszkę, Twoja drużyna natychmiast zaczyna pić.</li>
+                    <li>Zadaniem drużyny broniącej jest jak najszybsze odstawienie środkowej puszki do pionu oraz powrót za swoją linię startową.</li>
+                    <li><strong>Złota zasada:</strong> Środkowa puszka musi STAĆ, w momencie gdy gracz wracający przekracza linię z powrotem. Wtedy drużyna rzucająca przerywa picie.</li>
+                    <li>Biegać po puszkę na środek i wykonywać rzuty karne może <strong>dowolna osoba</strong> z drużyny broniącej.</li>
+                </ul>
+
+                <h3 style="color: var(--accent-red); margin-top: 20px; margin-bottom: 5px;">🚫 Przewinienia i Kary</h3>
+                <p style="line-height: 1.5; margin-bottom: 10px;">Zabrania się kategorycznie <strong>zamieniania się piwem</strong> z kimkolwiek! Każdy pije swoje. Kary to <strong>rzuty karne</strong> (od jednego wzwyż). Rzucać karne może dowolna osoba z drużyny poszkodowanej.</p>
+                <p style="line-height: 1.5;">Kary przyznaje się m.in. za:</p>
+                <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                    <li>Wylanie piwa.</li>
+                    <li>Falstart (za szybki start do picia lub przedwczesne wybiegnięcie).</li>
+                    <li>Oszustwo przy kończeniu piwa (tzw. niedopicie, kłamanie że się skończyło).</li>
+                </ul>
+            </div>
+        </section>
+
         <section id="view-leaderboard" class="view-section">
             <div class="card" style="max-width: 800px;">
                 <h2>🏆 TOP Graczy</h2>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                        <thead>
-                            <tr style="color: var(--text-muted); text-align: left;">
-                                <th style="padding: 10px;">#</th>
-                                <th style="padding: 10px;">Gracz</th>
-                                <th style="padding: 10px;">Uczelnia</th>
-                                <th style="padding: 10px;">Wygrane</th>
-                            </tr>
-                        </thead>
-                    <tbody id="leaderboardBody">
-                </tbody>
-            </table>
-        </div>
-    </section>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                    <thead>
+                        <tr style="color: var(--text-muted); text-align: left;">
+                            <th style="padding: 10px;">#</th>
+                            <th style="padding: 10px;">Gracz</th>
+                            <th style="padding: 10px;">Uczelnia</th>
+                            <th style="padding: 10px;">Wszystkie Gry</th>
+                            <th style="padding: 10px;">Wygrane</th>
+                            <th style="padding: 10px;">Win Ratio</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody"></tbody>
+                </table>
+            </div>
+        </section>
 
         <section id="view-login" class="view-section active">
             <div class="card">
@@ -137,8 +193,18 @@
                     <button class="password-toggle" onclick="togglePassword('regPassword')">👁️</button>
                 </div>
                 <div class="form-group">
-                    <label>Uczelnia (Kod, np. PRZ)</label>
-                    <input type="text" id="regUni" placeholder="Opcjonalnie">
+                    <label>Uczelnia</label>
+                    <div class="radio-panel">
+                        <label class="radio-label">
+                            <input type="radio" name="regUni" value="PRZ" checked> PRz
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="regUni" value="UR"> UR
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="regUni" value="Other"> Inna
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Wydział (Kod, np. WEII)</label>
@@ -162,23 +228,37 @@
         </section>
 
         <section id="view-home" class="view-section">
-            <div class="card">
-                <h2>Zostań Hostem</h2>
-                <button class="btn" onclick="createGame()">➕ Stwórz Nową Grę</button>
-            </div>
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin-bottom: 0; border: none;">Oczekujące Gry</h2>
-                    <button class="btn" style="width: auto; padding: 6px 15px; margin-top: 0; background: var(--bg-surface-hover); color: var(--text-main);" onclick="fetchActiveGames()">🔄 Odśwież</button>
+            <div id="homeCreateView">
+                <div class="card">
+                    <h2>Zostań Hostem</h2>
+                    <button class="btn" onclick="createGame()">➕ Stwórz Nową Grę</button>
                 </div>
-                <ul class="players-list" id="gamesBrowserList">
-                    <li class="player-item">Pobieranie listy gier...</li>
-                </ul>
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin-bottom: 0; border: none;">Oczekujące Gry</h2>
+                        <button class="btn" style="width: auto; padding: 6px 15px; margin-top: 0; background: var(--bg-surface-hover); color: var(--text-main);" onclick="fetchActiveGames()">🔄 Odśwież</button>
+                    </div>
+                    <ul class="players-list" id="gamesBrowserList">
+                        <li class="player-item">Pobieranie listy gier...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="homeActiveView" class="card" style="display: none; text-align: center;">
+                <h2>🎮 Jesteś już w grze!</h2>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">Nie możesz utworzyć nowej gry, dopóki jesteś w innej.</p>
+                <button class="btn" onclick="switchView('view-lobby')">Wróć do swojego Lobby</button>
             </div>
         </section>
 
         <section id="view-lobby" class="view-section">
-            <div class="card" style="max-width: 800px;">
+            <div id="lobbyEmptyState" class="card" style="text-align: center; display: none;">
+                <h2>Brak aktywnego lobby</h2>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">Nie jesteś obecnie w żadnej grze. Dołącz do lobby lub stwórz własne.</p>
+                <button class="btn" onclick="switchView('view-home')">Wróć do przeglądarki gier</button>
+            </div>
+
+            <div id="lobbyContent" class="card" style="max-width: 800px; display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2 style="border: none;">Szczegóły Lobby #<span id="lobbyIdDisplay">?</span></h2>
                     <span id="lobbyStatusBadge" style="background: var(--bg-surface-hover); padding: 5px 10px; border-radius: 5px; font-weight: bold;">BRAK DANYCH</span>
@@ -194,7 +274,8 @@
 
                 <div style="display: flex; gap: 15px; margin-top: 30px;">
                     <button class="btn" style="width: auto;" onclick="fetchLobby()">🔄 Odśwież listę graczy</button>
-                    <button class="btn danger" style="width: auto; margin-left: auto;" onclick="cancelGame()">Zniszcz Lobby (Tylko Host)</button>
+                    <button id="leaveGameBtn" class="btn danger" style="width: auto; margin-left: auto; display: none;" onclick="leaveGame()">Wyjdź z Lobby</button>
+                    <button id="cancelGameBtn" class="btn danger" style="width: auto; margin-left: auto; display: none;" onclick="cancelGame()">Zniszcz Lobby (Tylko Host)</button>
                 </div>
             </div>
         </section>
@@ -207,12 +288,13 @@
 
     let token = localStorage.getItem('jwt_token') || null;
     let currentUser = JSON.parse(localStorage.getItem('current_user')) || null;
-    let currentActiveLobbyId = null;
+    let currentActiveLobbyId = localStorage.getItem('active_lobby_id') || null;
 
     window.onload = () => {
         updateAuthUI();
         if(token) {
             switchView('view-profile');
+            if(currentActiveLobbyId) fetchLobby();
         }
     }
 
@@ -222,27 +304,33 @@
     }
 
     function switchView(viewId) {
+        if (viewId === 'view-home' && currentActiveLobbyId) {
+            viewId = 'view-lobby';
+        }
+
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.getElementById(viewId).classList.add('active');
         document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
         
-    const btnMap = { 
-        'view-login': 'nav-login', 
-        'view-register': 'nav-register', 
-        'view-home': 'nav-home', 
-        'view-lobby': 'nav-lobby', 
-        'view-profile': 'nav-profile',
-        'view-leaderboard': 'nav-leaderboard' // DODAJ TO!
-    };
+        // DODANO TUTAJ VIEW-RULES DO MAPY:
+        const btnMap = { 
+            'view-login': 'nav-login', 
+            'view-register': 'nav-register', 
+            'view-home': 'nav-home', 
+            'view-lobby': 'nav-lobby', 
+            'view-profile': 'nav-profile', 
+            'view-leaderboard': 'nav-leaderboard',
+            'view-rules': 'nav-rules'
+        };
+        
         if(document.getElementById(btnMap[viewId])) {
             document.getElementById(btnMap[viewId]).classList.add('active');
         }
         
         if(viewId === 'view-leaderboard') fetchLeaderboard();
-        if(viewId === 'view-home') fetchActiveGames();
         if(viewId === 'view-profile') loadProfileData();
-
-        
+        if(viewId === 'view-home') fetchActiveGames(); 
+        if(viewId === 'view-lobby') updateLobbyUIState();
     }
 
     function showToast(message, type = "success") {
@@ -259,7 +347,7 @@
         const navUnauth = document.getElementById('nav-unauth');
         
         if (token && currentUser) {
-            userInfo.textContent = `Zalogowano jako: ${currentUser.name}`;
+            userInfo.textContent = `Zalogowano: ${currentUser.name}`;
             userInfo.style.display = 'block';
             logoutBtn.style.display = 'block';
             navAuth.style.display = 'flex';
@@ -283,7 +371,20 @@
         document.getElementById('profWon').textContent = currentUser.games_won;
     }
 
-    /* --- LOGOWANIE I REJESTRACJA --- */
+    function updateLobbyUIState() {
+        const emptyState = document.getElementById('lobbyEmptyState');
+        const content = document.getElementById('lobbyContent');
+
+        if (!currentActiveLobbyId) {
+            emptyState.style.display = 'block';
+            content.style.display = 'none';
+        } else {
+            emptyState.style.display = 'none';
+            content.style.display = 'block';
+            fetchLobby();
+        }
+    }
+
     async function login() {
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
@@ -304,6 +405,11 @@
                 localStorage.setItem('jwt_token', token);
                 localStorage.setItem('current_user', JSON.stringify(currentUser));
                 
+                if (data.active_game_id) {
+                    currentActiveLobbyId = data.active_game_id;
+                    localStorage.setItem('active_lobby_id', currentActiveLobbyId);
+                }
+
                 updateAuthUI();
                 showToast("Zalogowano pomyślnie!", "success");
                 switchView('view-profile');
@@ -319,6 +425,7 @@
         currentActiveLobbyId = null;
         localStorage.removeItem('jwt_token');
         localStorage.removeItem('current_user');
+        localStorage.removeItem('active_lobby_id');
         updateAuthUI();
         showToast("Wylogowano.", "success");
         switchView('view-login');
@@ -328,12 +435,11 @@
         const name = document.getElementById('regName').value;
         const email = document.getElementById('regEmail').value;
         const password = document.getElementById('regPassword').value;
-        const uni = document.getElementById('regUni').value || null;
+        const uniElement = document.querySelector('input[name="regUni"]:checked');
+        const uni = uniElement ? uniElement.value : null;
         const faculty = document.getElementById('regFaculty').value || null;
 
         if (!name || !email || !password) return showToast("Wypełnij wymagane pola (*)", "error");
-        
-        // Szybka walidacja frontu (dla wygody użytkownika, zanim zapyta serwer)
         if (password.length < 6) return showToast("Hasło jest za krótkie!", "error");
 
         try {
@@ -360,7 +466,6 @@
         return true;
     }
 
-    /* --- LOGIKA GRY --- */
     async function fetchActiveGames() {
         if (!checkAuth()) return;
         const listContainer = document.getElementById('gamesBrowserList');
@@ -404,9 +509,18 @@
             if (res.ok) {
                 showToast(`Lobby stworzone!`, "success");
                 currentActiveLobbyId = data.game_id; 
+                localStorage.setItem('active_lobby_id', data.game_id);
                 switchView('view-lobby');
-                fetchLobby();
-            } else { showToast(data.error || data.message, "error"); }
+            } else { 
+                if (data.game_id) {
+                    currentActiveLobbyId = data.game_id;
+                    localStorage.setItem('active_lobby_id', data.game_id);
+                    switchView('view-lobby');
+                    showToast("Przywrócono sesję gry!", "success");
+                } else {
+                    showToast(data.error || data.message, "error"); 
+                }
+            }
         } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
 
@@ -426,14 +540,22 @@
             if (res.ok) {
                 showToast("Dołączono pomyślnie!", "success");
                 currentActiveLobbyId = gameId; 
+                localStorage.setItem('active_lobby_id', gameId);
                 switchView('view-lobby');
-                fetchLobby();
-            } else { showToast(data.error || data.message, "error"); }
+            } else { 
+                if (data.game_id) {
+                    currentActiveLobbyId = data.game_id;
+                    localStorage.setItem('active_lobby_id', data.game_id);
+                    switchView('view-lobby');
+                } else {
+                    showToast(data.error || data.message, "error"); 
+                }
+            }
         } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
 
     async function fetchLobby() {
-        if(!currentActiveLobbyId) return showToast("Nie jesteś obecnie w żadnym lobby.", "error");
+        if(!currentActiveLobbyId) return updateLobbyUIState();
 
         try {
             const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}`);
@@ -445,6 +567,18 @@
                 document.getElementById('lobbyCodeDisplay').textContent = data.code;
                 document.getElementById('lobbyHostDisplay').textContent = data.host_id;
                 document.getElementById('lobbyCountDisplay').textContent = data.players_count;
+
+                // LOGIKA PRZYCISKÓW: Zniszcz dla Hosta, Wyjdź dla Gracza
+                const cancelBtn = document.getElementById('cancelGameBtn');
+                const leaveBtn = document.getElementById('leaveGameBtn');
+
+                if (currentUser && data.host_id === currentUser.player_id) {
+                    cancelBtn.style.display = 'block';
+                    leaveBtn.style.display = 'none';
+                } else {
+                    cancelBtn.style.display = 'none';
+                    leaveBtn.style.display = 'block';
+                }
 
                 const listContainer = document.getElementById('playersListContainer');
                 listContainer.innerHTML = ""; 
@@ -468,14 +602,22 @@
                         `;
                     });
                 }
-            } else { showToast(data.error || data.message, "error"); }
-        } catch (err) { showToast("Błąd łączenia z API", "error"); }
+            } else {
+                currentActiveLobbyId = null;
+                localStorage.removeItem('active_lobby_id');
+                updateLobbyUIState();
+                showToast("To lobby już nie istnieje", "error");
+            }
+        } catch (err) { 
+            showToast("Błąd łączenia z API", "error"); 
+        }
     }
 
     async function cancelGame() {
         if (!checkAuth()) return;
         if (!currentActiveLobbyId) return showToast("Nie ma czego usunąć.", "error");
-        if(!confirm("Czy na pewno chcesz zniszczyć to lobby?")) return;
+
+        if(!confirm("Czy na pewno chcesz zniszczyć to lobby? Wszystko przepadnie!")) return;
 
         try {
             const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}`, {
@@ -486,45 +628,79 @@
             const data = await res.json();
 
             if (res.ok) {
-                showToast("Lobby usunięte.", "success");
+                showToast("Lobby zniszczone.", "success");
                 currentActiveLobbyId = null; 
+                localStorage.removeItem('active_lobby_id');
                 switchView('view-home'); 
             } else { showToast(data.error || data.message, "error"); }
         } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
 
-    async function fetchLeaderboard() {
-    const tbody = document.getElementById('leaderboardBody');
-    tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding: 20px;'>Ładowanie rankingu...</td></tr>";
+    async function leaveGame() {
+        if (!checkAuth()) return;
+        if (!currentActiveLobbyId) return showToast("Nie jesteś w lobby.", "error");
 
-    try {
-        const res = await fetch(`${API_URL}/players`);
-        const players = await res.json();
-        tbody.innerHTML = "";
+        if(!confirm("Czy na pewno chcesz opuścić to lobby?")) return;
 
-        if (players.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Brak graczy w rankingu.</td></tr>";
-            return;
+        try {
+            const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/leave`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: currentUser.player_id })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                showToast("Opuszczono lobby.", "success");
+                currentActiveLobbyId = null; 
+                localStorage.removeItem('active_lobby_id');
+                switchView('view-home');
+            } else { 
+                showToast(data.error || data.message, "error"); 
+            }
+        } catch (err) { 
+            showToast("Błąd łączenia z API", "error"); 
         }
+    }
 
+    async function fetchLeaderboard() {
+        const tbody = document.getElementById('leaderboardBody');
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding: 20px;'>Ładowanie rankingu...</td></tr>";
+
+        try {
+            const res = await fetch(`${API_URL}/players`);
+            const players = await res.json();
+            tbody.innerHTML = "";
+
+            if (players.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Brak graczy w rankingu.</td></tr>";
+                return;
+            }
+
+            // PODMIEŃ WNĘTRZE fetchLeaderboard() (część rysującą wiersze):
         players.forEach((p, index) => {
-            // Kolor dla TOP 3
             const rowStyle = index < 3 ? "background: var(--bg-surface-hover);" : "";
             
+            // Obliczanie Win Ratio
+            const winRatio = p.games_played > 0 
+                ? Math.round((p.games_won / p.games_played) * 100) + '%' 
+                : '0%';
+
             tbody.innerHTML += `
                 <tr style="${rowStyle}">
                     <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
                     <td style="padding: 12px;">${p.name}</td>
                     <td style="padding: 12px; color: var(--text-muted);">${p.university || '-'}</td>
+                    <td style="padding: 12px; font-weight: bold;">${p.games_played}</td>
                     <td style="padding: 12px; color: var(--accent-green); font-weight: bold;">${p.games_won}</td>
+                    <td style="padding: 12px; color: var(--accent-blue); font-weight: bold;">${winRatio}</td>
                 </tr>
             `;
         });
-    } catch (err) {
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color: var(--accent-red);'>Błąd łączenia z API</td></tr>";
+        } catch (err) {
+            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color: var(--accent-red);'>Błąd łączenia z API</td></tr>";
+        }
     }
-}
-
 </script>
 </body>
 </html>
