@@ -45,8 +45,10 @@ class Player(db.Model):
     name = db.Column(db.String(50), nullable=False)
     games_played = db.Column(db.Integer, nullable=False, default=0)
     games_won = db.Column(db.Integer, nullable=False, default=0)
-    university = db.Column(db.Enum(UniversityChoice), nullable=False)
-    faculty = db.Column(db.Enum(FacultyChoice), nullable=True) 
+    university = db.Column(db.Enum(UniversityChoice), nullable=True)
+    faculty = db.Column(db.Enum(FacultyChoice), nullable=True)
+    email = db.Column(db.String(50), unique = True, nullable = False)
+    password = db.Column(db.String(128), nullable = False)
 
     def to_dict(self):
         return {
@@ -55,7 +57,8 @@ class Player(db.Model):
             "games_played": self.games_played,
             "games_won": self.games_won,
             "university": self.university.name if self.university else None,
-            "faculty": self.faculty.name if self.faculty else None
+            "faculty": self.faculty.name if self.faculty else None,
+            "email" : self.email
         }
 
 class Match(db.Model):

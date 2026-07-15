@@ -1,8 +1,12 @@
 from flask import Flask, request, jsonify
 from models import db, Game, Player, Match, UniversityChoice, FacultyChoice, GameStatus, Team
 import random
+import os
+from dotenv import load_dotenv
 
 app = Flask(__name__)
+
+load_dotenv()
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flanki.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

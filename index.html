@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flanki App - Wersja PRO</title>
+    <style>
+        :root {
+            --bg-base: #1e1e2e;
+            --bg-surface: #313244;
+            --bg-surface-hover: #45475a;
+            --text-main: #cdd6f4;
+            --text-muted: #a6adc8;
+            --accent-blue: #89b4fa;
+            --accent-blue-hover: #b4befe;
+            --accent-green: #a6e3a1;
+            --accent-red: #f38ba8;
+            --border-radius: 12px;
+            --transition: 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar { width: 250px; background-color: var(--bg-surface); padding: 20px; display: flex; flex-direction: column; gap: 15px; border-right: 1px solid var(--bg-surface-hover); }
+        .sidebar h1 { font-size: 24px; color: var(--accent-blue); margin-bottom: 20px; text-align: center; letter-spacing: 2px; }
+        .nav-btn { background: transparent; color: var(--text-muted); border: none; padding: 12px 15px; text-align: left; font-size: 16px; font-weight: 600; border-radius: var(--border-radius); cursor: pointer; transition: var(--transition); }
+        .nav-btn:hover, .nav-btn.active { background-color: var(--bg-surface-hover); color: var(--accent-blue); }
+
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; }
+        .topbar { background-color: var(--bg-surface); padding: 15px 30px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid var(--bg-surface-hover); }
+        
+        #userInfo { font-weight: bold; color: var(--accent-green); display: none; }
+        .btn-logout { background-color: var(--accent-red); color: #11111b; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; display: none; }
+        .btn-logout:hover { background-color: #ffb4c9; }
+
+        .view-section { padding: 30px; overflow-y: auto; display: none; animation: fadeIn 0.4s ease; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background-color: var(--bg-surface); padding: 25px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 600px; margin-left: auto; margin-right: auto; }
+        .card h2 { margin-bottom: 20px; font-size: 20px; color: var(--accent-blue); }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px;}
+        .form-group label { font-size: 14px; color: var(--text-muted); }
+        input[type="text"], input[type="password"], input[type="number"], input[type="email"] { padding: 12px; border-radius: 8px; border: 1px solid var(--bg-surface-hover); background-color: var(--bg-base); color: var(--text-main); font-size: 15px; }
+        input:focus { outline: 1px solid var(--accent-blue); }
+
+        .btn { padding: 12px 20px; border-radius: 8px; border: none; background-color: var(--accent-blue); color: #11111b; font-weight: bold; font-size: 15px; cursor: pointer; transition: var(--transition); width: 100%; margin-top: 10px; }
+        .btn:hover { background-color: var(--accent-blue-hover); }
+        .btn.danger { background-color: var(--accent-red); }
+        .btn.danger:hover { background-color: #ffb4c9; }
+
+        .players-list { list-style: none; margin-top: 15px; }
+        .player-item { background-color: var(--bg-base); padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--accent-blue); }
+
+        #toast { position: fixed; bottom: 30px; right: 30px; background-color: var(--bg-surface); color: var(--text-main); padding: 15px 25px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.4); border-left: 5px solid var(--accent-blue); transform: translateX(150%); transition: transform 0.3s ease; z-index: 1000; }
+        #toast.show { transform: translateX(0); }
+        #toast.error { border-left-color: var(--accent-red); }
+        #toast.success { border-left-color: var(--accent-green); }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <h1>FLANKI APP</h1>
+        <button class="nav-btn active" onclick="switchView('view-login')" id="nav-login">🔑 Logowanie</button>
+        <button class="nav-btn" onclick="switchView('view-register')" id="nav-register">📝 Rejestracja</button>
+        <button class="nav-btn" onclick="switchView('view-home')" id="nav-home">🏠 Przeglądarka Gier</button>
+        <button class="nav-btn" onclick="switchView('view-lobby')" id="nav-lobby">🎮 Aktywne Lobby</button>
+    </nav>
+
+    <main class="main-content">
+        <header class="topbar">
+            <span id="userInfo">Niezalogowany</span>
+            <button class="btn-logout" id="logoutBtn" onclick="logout()">Wyloguj</button>
+        </header>
+
+        <section id="view-login" class="view-section active">
+            <div class="card">
+                <h2>Zaloguj się</h2>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="Wpisz email">
+                </div>
+                <div class="form-group">
+                    <label>Hasło</label>
+                    <input type="password" id="loginPassword" placeholder="Wpisz hasło">
+                </div>
+                <button class="btn" onclick="login()">Zaloguj</button>
+            </div>
+        </section>
+
+        <section id="view-register" class="view-section">
+            <div class="card">
+                <h2>Zarejestruj nowego gracza</h2>
+                <div class="form-group">
+                    <label>Imię / Nick *</label>
+                    <input type="text" id="regName" placeholder="Np. Kamil">
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="regEmail" placeholder="Np. kamil@student.pl">
+                </div>
+                <div class="form-group">
+                    <label>Hasło *</label>
+                    <input type="password" id="regPassword" placeholder="Minimum 6 znaków">
+                </div>
+                <div class="form-group">
+                    <label>Uczelnia (Kod, np. PRZ)</label>
+                    <input type="text" id="regUni" placeholder="Opcjonalnie">
+                </div>
+                <div class="form-group">
+                    <label>Wydział (Kod, np. WEII)</label>
+                    <input type="text" id="regFaculty" placeholder="Opcjonalnie">
+                </div>
+                <button class="btn" onclick="registerPlayer()">Stwórz konto</button>
+            </div>
+        </section>
+
+        <section id="view-home" class="view-section">
+            <div class="card">
+                <h2>Zostań Hostem</h2>
+                <p style="color: var(--text-muted); margin-bottom: 15px;">Stwórz nowe lobby. Kod PIN zostanie wygenerowany automatycznie i zobaczysz go w następnym oknie.</p>
+                <button class="btn" onclick="createGame()">➕ Stwórz Nową Grę</button>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin-bottom: 0;">Oczekujące Gry</h2>
+                    <button class="btn" style="width: auto; padding: 6px 15px; margin-top: 0; background: var(--bg-surface-hover); color: var(--text-main);" onclick="fetchActiveGames()">🔄 Odśwież</button>
+                </div>
+                <ul class="players-list" id="gamesBrowserList">
+                    <li class="player-item">Pobieranie listy gier...</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="view-lobby" class="view-section">
+            <div class="card" style="max-width: 800px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Szczegóły Lobby #<span id="lobbyIdDisplay">?</span></h2>
+                    <span id="lobbyStatusBadge" style="background: var(--bg-surface-hover); padding: 5px 10px; border-radius: 5px; font-weight: bold;">BRAK DANYCH</span>
+                </div>
+                
+                <p>Kod dołączenia: <strong style="color: var(--accent-green); font-size: 20px; letter-spacing: 2px;" id="lobbyCodeDisplay">----</strong></p>
+                <p style="margin-top: 10px; color: var(--text-muted);">Host gry (ID): <span id="lobbyHostDisplay">-</span></p>
+
+                <h3 style="margin-top: 30px; margin-bottom: 10px; color: var(--accent-blue);">Lista Graczy (<span id="lobbyCountDisplay">0</span>)</h3>
+                <ul class="players-list" id="playersListContainer">
+                    <li class="player-item">Pobierz dane lobby, aby zobaczyć graczy.</li>
+                </ul>
+
+                <div style="display: flex; gap: 15px; margin-top: 30px;">
+                    <input type="number" id="fetchLobbyId" placeholder="ID gry (podgląd)" style="width: 150px; display: none;">
+                    <button class="btn" style="width: auto;" onclick="fetchLobby()">🔄 Odśwież listę graczy</button>
+                    <button class="btn danger" style="width: auto; margin-left: auto;" onclick="cancelGame()">Zniszcz Lobby (Tylko Host)</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast">Komunikat systemowy</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:5000";
+
+    let token = localStorage.getItem('jwt_token') || null;
+    let currentUser = JSON.parse(localStorage.getItem('current_user')) || null;
+    let currentActiveLobbyId = null; // Trzyma ID lobby, w którym aktualnie jesteś
+
+    window.onload = () => {
+        updateAuthUI();
+        if(token) {
+            switchView('view-home');
+            fetchActiveGames();
+        }
+    }
+
+    function switchView(viewId) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        const btnMap = { 'view-login': 'nav-login', 'view-register': 'nav-register', 'view-home': 'nav-home', 'view-lobby': 'nav-lobby' };
+        document.getElementById(btnMap[viewId]).classList.add('active');
+        
+        // Jeżeli gracz wchodzi do menu gier, od razu odświeżamy listę
+        if(viewId === 'view-home') fetchActiveGames();
+    }
+
+    function showToast(message, type = "success") {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = `show ${type}`;
+        setTimeout(() => toast.className = "", 3000);
+    }
+
+    function updateAuthUI() {
+        const userInfo = document.getElementById('userInfo');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        if (token && currentUser) {
+            userInfo.textContent = `Witaj, ${currentUser.name} (ID: ${currentUser.player_id})`;
+            userInfo.style.display = 'block';
+            logoutBtn.style.display = 'block';
+        } else {
+            userInfo.style.display = 'none';
+            logoutBtn.style.display = 'none';
+        }
+    }
+
+    /* --- LOGOWANIE I REJESTRACJA --- */
+    async function login() {
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+
+        if (!email || !password) return showToast("Wypełnij oba pola!", "error");
+
+        try {
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                token = data.access_token;
+                currentUser = data.player;
+                localStorage.setItem('jwt_token', token);
+                localStorage.setItem('current_user', JSON.stringify(currentUser));
+                
+                updateAuthUI();
+                showToast("Zalogowano pomyślnie!", "success");
+                switchView('view-home');
+            } else {
+                showToast(data.error || "Błąd logowania", "error");
+            }
+        } catch (err) { showToast("Brak połączenia z serwerem.", "error"); }
+    }
+
+    function logout() {
+        token = null;
+        currentUser = null;
+        currentActiveLobbyId = null;
+        localStorage.removeItem('jwt_token');
+        localStorage.removeItem('current_user');
+        updateAuthUI();
+        showToast("Wylogowano.", "success");
+        switchView('view-login');
+    }
+
+    async function registerPlayer() {
+        const name = document.getElementById('regName').value;
+        const email = document.getElementById('regEmail').value;
+        const password = document.getElementById('regPassword').value;
+        const uni = document.getElementById('regUni').value || null;
+        const faculty = document.getElementById('regFaculty').value || null;
+
+        if (!name || !email || !password) return showToast("Wypełnij wymagane pola (*)", "error");
+
+        try {
+            const res = await fetch(`${API_URL}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password, university: uni, faculty })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                showToast("Zarejestrowano! Możesz się teraz zalogować.", "success");
+                switchView('view-login'); 
+            } else { showToast(data.error || data.message, "error"); }
+        } catch (err) { showToast("Brak połączenia z API.", "error"); }
+    }
+
+    function checkAuth() {
+        if (!currentUser) {
+            showToast("Musisz się zalogować, aby to zrobić!", "error");
+            switchView('view-login');
+            return false;
+        }
+        return true;
+    }
+
+    /* --- PRZEGLĄDARKA GIER (Nowa Funkcja) --- */
+    async function fetchActiveGames() {
+        if (!checkAuth()) return;
+        const listContainer = document.getElementById('gamesBrowserList');
+        
+        try {
+            const res = await fetch(`${API_URL}/games`);
+            const games = await res.json();
+
+            listContainer.innerHTML = ""; 
+
+            if (games.length === 0) {
+                listContainer.innerHTML = "<li class='player-item'>Brak oczekujących gier. Stwórz nową!</li>";
+                return;
+            }
+
+            games.forEach(game => {
+                listContainer.innerHTML += `
+                    <li class="player-item" style="flex-direction: column; align-items: flex-start; gap: 12px; border-left-color: var(--accent-green);">
+                        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                            <div>
+                                <strong style="font-size: 18px; color: var(--accent-blue);">Lobby #${game.game_id}</strong>
+                                <br>
+                                <span style="color: var(--text-muted); font-size: 13px;">Host ID: ${game.host_id} | Ilość graczy: ${game.players_count}</span>
+                            </div>
+                            <button class="btn" style="width: auto; padding: 8px 15px; margin-top: 0;" onclick="joinGamePrompt(${game.game_id})">Wejdź 🔒</button>
+                        </div>
+                    </li>
+                `;
+            });
+        } catch (err) { 
+            showToast("Błąd podczas pobierania listy gier.", "error"); 
+        }
+    }
+
+    /* --- TWORZENIE I DOŁĄCZANIE DO GRY --- */
+    async function createGame() {
+        if (!checkAuth()) return;
+
+        try {
+            const res = await fetch(`${API_URL}/games`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: currentUser.player_id })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                showToast(`Lobby stworzone!`, "success");
+                currentActiveLobbyId = data.game_id; // Zapisujemy ID z tyłu
+                switchView('view-lobby');
+                fetchLobby();
+            } else { showToast(data.error || data.message, "error"); }
+        } catch (err) { showToast("Błąd łączenia z API", "error"); }
+    }
+
+    // Nowa funkcja dołączania wykorzystująca systemowy Prompt do wpisania pinu
+    async function joinGamePrompt(gameId) {
+        if (!checkAuth()) return;
+
+        // Przeglądarka wyświetla okienko do wpisania kodu
+        const code = prompt(`Wpisz tajny 4-cyfrowy kod PIN dla Lobby #${gameId}:`);
+        
+        // Jeśli ktoś kliknął Anuluj albo nic nie wpisał
+        if (!code) return; 
+
+        try {
+            const res = await fetch(`${API_URL}/games/join/${gameId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: currentUser.player_id, code: parseInt(code) })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                showToast("Dołączono pomyślnie!", "success");
+                currentActiveLobbyId = gameId; // Zapisujemy ID z tyłu
+                switchView('view-lobby');
+                fetchLobby();
+            } else { showToast(data.error || data.message, "error"); }
+        } catch (err) { showToast("Błąd łączenia z API", "error"); }
+    }
+
+    /* --- WIDOK LOBBY --- */
+    async function fetchLobby() {
+        if(!currentActiveLobbyId) return showToast("Nie jesteś obecnie w żadnym lobby.", "error");
+
+        try {
+            const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}`);
+            const data = await res.json();
+
+            if (res.ok) {
+                document.getElementById('lobbyIdDisplay').textContent = data.game_id;
+                document.getElementById('lobbyStatusBadge').textContent = data.status;
+                document.getElementById('lobbyCodeDisplay').textContent = data.code;
+                document.getElementById('lobbyHostDisplay').textContent = data.host_id;
+                document.getElementById('lobbyCountDisplay').textContent = data.players_count;
+
+                const listContainer = document.getElementById('playersListContainer');
+                listContainer.innerHTML = ""; 
+
+                if (data.players.length === 0) {
+                    listContainer.innerHTML = "<li class='player-item'>Lobby jest puste.</li>";
+                } else {
+                    data.players.forEach(player => {
+                        const teamText = player.team ? `Drużyna ${player.team}` : "Brak drużyny";
+                        const isMe = (currentUser && player.player_id === currentUser.player_id) ? " (TY)" : "";
+                        const uniText = player.university ? player.university : "?";
+                        
+                        listContainer.innerHTML += `
+                            <li class="player-item">
+                                <div>
+                                    <strong style="color: var(--accent-blue);">#${player.player_id}</strong> ${player.name} <span style="color:var(--accent-green)">${isMe}</span>
+                                    <span style="color: var(--text-muted); font-size: 13px; margin-left: 10px;">[${uniText}]</span>
+                                </div>
+                                <span style="background: var(--bg-surface-hover); padding: 4px 8px; border-radius: 4px; font-size: 13px;">${teamText}</span>
+                            </li>
+                        `;
+                    });
+                }
+            } else { showToast(data.error || data.message, "error"); }
+        } catch (err) { showToast("Błąd łączenia z API", "error"); }
+    }
+
+    async function cancelGame() {
+        if (!checkAuth()) return;
+        if (!currentActiveLobbyId) return showToast("Nie ma czego usunąć.", "error");
+
+        if(!confirm("Czy na pewno chcesz zniszczyć to lobby?")) return;
+
+        try {
+            const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: currentUser.player_id })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                showToast("Lobby usunięte.", "success");
+                currentActiveLobbyId = null; // Czyścimy zapisane ID
+                switchView('view-home'); // Wyrzucamy do przeglądarki gier
+            } else { showToast(data.error || data.message, "error"); }
+        } catch (err) { showToast("Błąd łączenia z API", "error"); }
+    }
+</script>
+
+</body>
+</html>
