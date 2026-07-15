@@ -6,23 +6,16 @@
     <title>Flanki App - Wersja PRO</title>
     <style>
         :root {
-            --bg-base: #1e1e2e;
-            --bg-surface: #313244;
-            --bg-surface-hover: #45475a;
-            --text-main: #cdd6f4;
-            --text-muted: #a6adc8;
-            --accent-blue: #89b4fa;
-            --accent-blue-hover: #b4befe;
-            --accent-green: #a6e3a1;
-            --accent-red: #f38ba8;
-            --border-radius: 12px;
-            --transition: 0.3s ease;
+            --bg-base: #1e1e2e; --bg-surface: #313244; --bg-surface-hover: #45475a;
+            --text-main: #cdd6f4; --text-muted: #a6adc8; --accent-blue: #89b4fa;
+            --accent-blue-hover: #b4befe; --accent-green: #a6e3a1; --accent-red: #f38ba8;
+            --border-radius: 12px; --transition: 0.3s ease;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
 
+        /* Sidebar & Topbar */
         .sidebar { width: 250px; background-color: var(--bg-surface); padding: 20px; display: flex; flex-direction: column; gap: 15px; border-right: 1px solid var(--bg-surface-hover); }
         .sidebar h1 { font-size: 24px; color: var(--accent-blue); margin-bottom: 20px; text-align: center; letter-spacing: 2px; }
         .nav-btn { background: transparent; color: var(--text-muted); border: none; padding: 12px 15px; text-align: left; font-size: 16px; font-weight: 600; border-radius: var(--border-radius); cursor: pointer; transition: var(--transition); }
@@ -30,30 +23,41 @@
 
         .main-content { flex-grow: 1; display: flex; flex-direction: column; }
         .topbar { background-color: var(--bg-surface); padding: 15px 30px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid var(--bg-surface-hover); }
-        
         #userInfo { font-weight: bold; color: var(--accent-green); display: none; }
         .btn-logout { background-color: var(--accent-red); color: #11111b; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; display: none; }
         .btn-logout:hover { background-color: #ffb4c9; }
 
+        /* Views & Cards */
         .view-section { padding: 30px; overflow-y: auto; display: none; animation: fadeIn 0.4s ease; }
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .card { background-color: var(--bg-surface); padding: 25px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 600px; margin-left: auto; margin-right: auto; }
-        .card h2 { margin-bottom: 20px; font-size: 20px; color: var(--accent-blue); }
-        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px;}
+        .card h2 { margin-bottom: 20px; font-size: 20px; color: var(--accent-blue); border-bottom: 1px solid var(--bg-surface-hover); padding-bottom: 10px; }
+        
+        /* Formularze i podgląd hasła */
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; position: relative; }
         .form-group label { font-size: 14px; color: var(--text-muted); }
-        input[type="text"], input[type="password"], input[type="number"], input[type="email"] { padding: 12px; border-radius: 8px; border: 1px solid var(--bg-surface-hover); background-color: var(--bg-base); color: var(--text-main); font-size: 15px; }
+        input { padding: 12px; border-radius: 8px; border: 1px solid var(--bg-surface-hover); background-color: var(--bg-base); color: var(--text-main); font-size: 15px; width: 100%; }
         input:focus { outline: 1px solid var(--accent-blue); }
+        
+        .password-toggle { position: absolute; right: 10px; top: 32px; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); }
+        .password-toggle:hover { color: var(--accent-blue); }
 
         .btn { padding: 12px 20px; border-radius: 8px; border: none; background-color: var(--accent-blue); color: #11111b; font-weight: bold; font-size: 15px; cursor: pointer; transition: var(--transition); width: 100%; margin-top: 10px; }
         .btn:hover { background-color: var(--accent-blue-hover); }
         .btn.danger { background-color: var(--accent-red); }
         .btn.danger:hover { background-color: #ffb4c9; }
 
+        /* Profil i Listy */
+        .profile-stat { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--bg-surface-hover); }
+        .profile-stat span:first-child { color: var(--text-muted); }
+        .profile-stat span:last-child { font-weight: bold; color: var(--accent-blue); }
+
         .players-list { list-style: none; margin-top: 15px; }
         .player-item { background-color: var(--bg-base); padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--accent-blue); }
 
+        /* Toasts */
         #toast { position: fixed; bottom: 30px; right: 30px; background-color: var(--bg-surface); color: var(--text-main); padding: 15px 25px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.4); border-left: 5px solid var(--accent-blue); transform: translateX(150%); transition: transform 0.3s ease; z-index: 1000; }
         #toast.show { transform: translateX(0); }
         #toast.error { border-left-color: var(--accent-red); }
@@ -64,10 +68,16 @@
 
     <nav class="sidebar">
         <h1>FLANKI APP</h1>
-        <button class="nav-btn active" onclick="switchView('view-login')" id="nav-login">🔑 Logowanie</button>
-        <button class="nav-btn" onclick="switchView('view-register')" id="nav-register">📝 Rejestracja</button>
-        <button class="nav-btn" onclick="switchView('view-home')" id="nav-home">🏠 Przeglądarka Gier</button>
-        <button class="nav-btn" onclick="switchView('view-lobby')" id="nav-lobby">🎮 Aktywne Lobby</button>
+        <div id="nav-unauth">
+            <button class="nav-btn active" onclick="switchView('view-login')" id="nav-login">🔑 Logowanie</button>
+            <button class="nav-btn" onclick="switchView('view-register')" id="nav-register">📝 Rejestracja</button>
+        </div>
+        <div id="nav-auth" style="display: none; flex-direction: column; gap: 15px;">
+            <button class="nav-btn" onclick="switchView('view-leaderboard')" id="nav-leaderboard">🏆 Ranking</button>
+            <button class="nav-btn" onclick="switchView('view-profile')" id="nav-profile">👤 Mój Profil</button>
+            <button class="nav-btn" onclick="switchView('view-home')" id="nav-home">🏠 Szukaj Gry</button>
+            <button class="nav-btn" onclick="switchView('view-lobby')" id="nav-lobby">🎮 Aktywne Lobby</button>
+        </div>
     </nav>
 
     <main class="main-content">
@@ -75,6 +85,24 @@
             <span id="userInfo">Niezalogowany</span>
             <button class="btn-logout" id="logoutBtn" onclick="logout()">Wyloguj</button>
         </header>
+
+        <section id="view-leaderboard" class="view-section">
+            <div class="card" style="max-width: 800px;">
+                <h2>🏆 TOP Graczy</h2>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                        <thead>
+                            <tr style="color: var(--text-muted); text-align: left;">
+                                <th style="padding: 10px;">#</th>
+                                <th style="padding: 10px;">Gracz</th>
+                                <th style="padding: 10px;">Uczelnia</th>
+                                <th style="padding: 10px;">Wygrane</th>
+                            </tr>
+                        </thead>
+                    <tbody id="leaderboardBody">
+                </tbody>
+            </table>
+        </div>
+    </section>
 
         <section id="view-login" class="view-section active">
             <div class="card">
@@ -86,6 +114,7 @@
                 <div class="form-group">
                     <label>Hasło</label>
                     <input type="password" id="loginPassword" placeholder="Wpisz hasło">
+                    <button class="password-toggle" onclick="togglePassword('loginPassword')">👁️</button>
                 </div>
                 <button class="btn" onclick="login()">Zaloguj</button>
             </div>
@@ -103,8 +132,9 @@
                     <input type="email" id="regEmail" placeholder="Np. kamil@student.pl">
                 </div>
                 <div class="form-group">
-                    <label>Hasło *</label>
+                    <label>Hasło * (Min. 6 znaków)</label>
                     <input type="password" id="regPassword" placeholder="Minimum 6 znaków">
+                    <button class="password-toggle" onclick="togglePassword('regPassword')">👁️</button>
                 </div>
                 <div class="form-group">
                     <label>Uczelnia (Kod, np. PRZ)</label>
@@ -118,16 +148,27 @@
             </div>
         </section>
 
+        <section id="view-profile" class="view-section">
+            <div class="card">
+                <h2>Karta Zawodnika</h2>
+                <div class="profile-stat"><span>ID Gracza:</span> <span id="profId">-</span></div>
+                <div class="profile-stat"><span>Imię/Nick:</span> <span id="profName">-</span></div>
+                <div class="profile-stat"><span>Email:</span> <span id="profEmail">-</span></div>
+                <div class="profile-stat"><span>Uczelnia:</span> <span id="profUni">-</span></div>
+                <div class="profile-stat"><span>Wydział:</span> <span id="profFac">-</span></div>
+                <div class="profile-stat" style="margin-top: 15px;"><span>Rozegrane mecze:</span> <span id="profPlayed">-</span></div>
+                <div class="profile-stat"><span>Wygrane mecze:</span> <span id="profWon" style="color: var(--accent-green);">-</span></div>
+            </div>
+        </section>
+
         <section id="view-home" class="view-section">
             <div class="card">
                 <h2>Zostań Hostem</h2>
-                <p style="color: var(--text-muted); margin-bottom: 15px;">Stwórz nowe lobby. Kod PIN zostanie wygenerowany automatycznie i zobaczysz go w następnym oknie.</p>
                 <button class="btn" onclick="createGame()">➕ Stwórz Nową Grę</button>
             </div>
-
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin-bottom: 0;">Oczekujące Gry</h2>
+                    <h2 style="margin-bottom: 0; border: none;">Oczekujące Gry</h2>
                     <button class="btn" style="width: auto; padding: 6px 15px; margin-top: 0; background: var(--bg-surface-hover); color: var(--text-main);" onclick="fetchActiveGames()">🔄 Odśwież</button>
                 </div>
                 <ul class="players-list" id="gamesBrowserList">
@@ -139,7 +180,7 @@
         <section id="view-lobby" class="view-section">
             <div class="card" style="max-width: 800px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>Szczegóły Lobby #<span id="lobbyIdDisplay">?</span></h2>
+                    <h2 style="border: none;">Szczegóły Lobby #<span id="lobbyIdDisplay">?</span></h2>
                     <span id="lobbyStatusBadge" style="background: var(--bg-surface-hover); padding: 5px 10px; border-radius: 5px; font-weight: bold;">BRAK DANYCH</span>
                 </div>
                 
@@ -152,7 +193,6 @@
                 </ul>
 
                 <div style="display: flex; gap: 15px; margin-top: 30px;">
-                    <input type="number" id="fetchLobbyId" placeholder="ID gry (podgląd)" style="width: 150px; display: none;">
                     <button class="btn" style="width: auto;" onclick="fetchLobby()">🔄 Odśwież listę graczy</button>
                     <button class="btn danger" style="width: auto; margin-left: auto;" onclick="cancelGame()">Zniszcz Lobby (Tylko Host)</button>
                 </div>
@@ -167,25 +207,42 @@
 
     let token = localStorage.getItem('jwt_token') || null;
     let currentUser = JSON.parse(localStorage.getItem('current_user')) || null;
-    let currentActiveLobbyId = null; // Trzyma ID lobby, w którym aktualnie jesteś
+    let currentActiveLobbyId = null;
 
     window.onload = () => {
         updateAuthUI();
         if(token) {
-            switchView('view-home');
-            fetchActiveGames();
+            switchView('view-profile');
         }
+    }
+
+    function togglePassword(inputId) {
+        const input = document.getElementById(inputId);
+        input.type = input.type === "password" ? "text" : "password";
     }
 
     function switchView(viewId) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.getElementById(viewId).classList.add('active');
         document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-        const btnMap = { 'view-login': 'nav-login', 'view-register': 'nav-register', 'view-home': 'nav-home', 'view-lobby': 'nav-lobby' };
-        document.getElementById(btnMap[viewId]).classList.add('active');
         
-        // Jeżeli gracz wchodzi do menu gier, od razu odświeżamy listę
+    const btnMap = { 
+        'view-login': 'nav-login', 
+        'view-register': 'nav-register', 
+        'view-home': 'nav-home', 
+        'view-lobby': 'nav-lobby', 
+        'view-profile': 'nav-profile',
+        'view-leaderboard': 'nav-leaderboard' // DODAJ TO!
+    };
+        if(document.getElementById(btnMap[viewId])) {
+            document.getElementById(btnMap[viewId]).classList.add('active');
+        }
+        
+        if(viewId === 'view-leaderboard') fetchLeaderboard();
         if(viewId === 'view-home') fetchActiveGames();
+        if(viewId === 'view-profile') loadProfileData();
+
+        
     }
 
     function showToast(message, type = "success") {
@@ -198,15 +255,32 @@
     function updateAuthUI() {
         const userInfo = document.getElementById('userInfo');
         const logoutBtn = document.getElementById('logoutBtn');
+        const navAuth = document.getElementById('nav-auth');
+        const navUnauth = document.getElementById('nav-unauth');
         
         if (token && currentUser) {
-            userInfo.textContent = `Witaj, ${currentUser.name} (ID: ${currentUser.player_id})`;
+            userInfo.textContent = `Zalogowano jako: ${currentUser.name}`;
             userInfo.style.display = 'block';
             logoutBtn.style.display = 'block';
+            navAuth.style.display = 'flex';
+            navUnauth.style.display = 'none';
         } else {
             userInfo.style.display = 'none';
             logoutBtn.style.display = 'none';
+            navAuth.style.display = 'none';
+            navUnauth.style.display = 'block';
         }
+    }
+
+    function loadProfileData() {
+        if(!currentUser) return;
+        document.getElementById('profId').textContent = currentUser.player_id;
+        document.getElementById('profName').textContent = currentUser.name;
+        document.getElementById('profEmail').textContent = currentUser.email;
+        document.getElementById('profUni').textContent = currentUser.university || "Brak danych";
+        document.getElementById('profFac').textContent = currentUser.faculty || "Brak danych";
+        document.getElementById('profPlayed').textContent = currentUser.games_played;
+        document.getElementById('profWon').textContent = currentUser.games_won;
     }
 
     /* --- LOGOWANIE I REJESTRACJA --- */
@@ -232,7 +306,7 @@
                 
                 updateAuthUI();
                 showToast("Zalogowano pomyślnie!", "success");
-                switchView('view-home');
+                switchView('view-profile');
             } else {
                 showToast(data.error || "Błąd logowania", "error");
             }
@@ -258,6 +332,9 @@
         const faculty = document.getElementById('regFaculty').value || null;
 
         if (!name || !email || !password) return showToast("Wypełnij wymagane pola (*)", "error");
+        
+        // Szybka walidacja frontu (dla wygody użytkownika, zanim zapyta serwer)
+        if (password.length < 6) return showToast("Hasło jest za krótkie!", "error");
 
         try {
             const res = await fetch(`${API_URL}/auth/register`, {
@@ -283,7 +360,7 @@
         return true;
     }
 
-    /* --- PRZEGLĄDARKA GIER (Nowa Funkcja) --- */
+    /* --- LOGIKA GRY --- */
     async function fetchActiveGames() {
         if (!checkAuth()) return;
         const listContainer = document.getElementById('gamesBrowserList');
@@ -291,7 +368,6 @@
         try {
             const res = await fetch(`${API_URL}/games`);
             const games = await res.json();
-
             listContainer.innerHTML = ""; 
 
             if (games.length === 0) {
@@ -313,15 +389,11 @@
                     </li>
                 `;
             });
-        } catch (err) { 
-            showToast("Błąd podczas pobierania listy gier.", "error"); 
-        }
+        } catch (err) { showToast("Błąd podczas pobierania listy gier.", "error"); }
     }
 
-    /* --- TWORZENIE I DOŁĄCZANIE DO GRY --- */
     async function createGame() {
         if (!checkAuth()) return;
-
         try {
             const res = await fetch(`${API_URL}/games`, {
                 method: 'POST',
@@ -329,24 +401,18 @@
                 body: JSON.stringify({ player_id: currentUser.player_id })
             });
             const data = await res.json();
-
             if (res.ok) {
                 showToast(`Lobby stworzone!`, "success");
-                currentActiveLobbyId = data.game_id; // Zapisujemy ID z tyłu
+                currentActiveLobbyId = data.game_id; 
                 switchView('view-lobby');
                 fetchLobby();
             } else { showToast(data.error || data.message, "error"); }
         } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
 
-    // Nowa funkcja dołączania wykorzystująca systemowy Prompt do wpisania pinu
     async function joinGamePrompt(gameId) {
         if (!checkAuth()) return;
-
-        // Przeglądarka wyświetla okienko do wpisania kodu
         const code = prompt(`Wpisz tajny 4-cyfrowy kod PIN dla Lobby #${gameId}:`);
-        
-        // Jeśli ktoś kliknął Anuluj albo nic nie wpisał
         if (!code) return; 
 
         try {
@@ -359,14 +425,13 @@
 
             if (res.ok) {
                 showToast("Dołączono pomyślnie!", "success");
-                currentActiveLobbyId = gameId; // Zapisujemy ID z tyłu
+                currentActiveLobbyId = gameId; 
                 switchView('view-lobby');
                 fetchLobby();
             } else { showToast(data.error || data.message, "error"); }
         } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
 
-    /* --- WIDOK LOBBY --- */
     async function fetchLobby() {
         if(!currentActiveLobbyId) return showToast("Nie jesteś obecnie w żadnym lobby.", "error");
 
@@ -410,7 +475,6 @@
     async function cancelGame() {
         if (!checkAuth()) return;
         if (!currentActiveLobbyId) return showToast("Nie ma czego usunąć.", "error");
-
         if(!confirm("Czy na pewno chcesz zniszczyć to lobby?")) return;
 
         try {
@@ -423,12 +487,44 @@
 
             if (res.ok) {
                 showToast("Lobby usunięte.", "success");
-                currentActiveLobbyId = null; // Czyścimy zapisane ID
-                switchView('view-home'); // Wyrzucamy do przeglądarki gier
+                currentActiveLobbyId = null; 
+                switchView('view-home'); 
             } else { showToast(data.error || data.message, "error"); }
         } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
-</script>
 
+    async function fetchLeaderboard() {
+    const tbody = document.getElementById('leaderboardBody');
+    tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding: 20px;'>Ładowanie rankingu...</td></tr>";
+
+    try {
+        const res = await fetch(`${API_URL}/players`);
+        const players = await res.json();
+        tbody.innerHTML = "";
+
+        if (players.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Brak graczy w rankingu.</td></tr>";
+            return;
+        }
+
+        players.forEach((p, index) => {
+            // Kolor dla TOP 3
+            const rowStyle = index < 3 ? "background: var(--bg-surface-hover);" : "";
+            
+            tbody.innerHTML += `
+                <tr style="${rowStyle}">
+                    <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
+                    <td style="padding: 12px;">${p.name}</td>
+                    <td style="padding: 12px; color: var(--text-muted);">${p.university || '-'}</td>
+                    <td style="padding: 12px; color: var(--accent-green); font-weight: bold;">${p.games_won}</td>
+                </tr>
+            `;
+        });
+    } catch (err) {
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color: var(--accent-red);'>Błąd łączenia z API</td></tr>";
+    }
+}
+
+</script>
 </body>
 </html>
