@@ -16,8 +16,7 @@ load_dotenv()
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///flanki.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'super-tajny-klucz-do-flanek-12345' 
-
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY')
 db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
@@ -281,6 +280,9 @@ def start_game(game_id):
         db.session.rollback()
         return jsonify({"error": f"Błąd bazy danych: {str(e)}"}), 500
 
+@app.route('/games/<int:game_id>/finish')
+def finish_route(game_id):
+    data = request.get_json()
 
 
 if __name__ == '__main__':
