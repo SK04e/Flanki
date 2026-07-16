@@ -303,7 +303,7 @@ def finish_route(game_id):
     for match in game.matches:
         player = match.player
         player.games_played += 1
-        if player.team == game.winning_team:
+        if match.team == game.winning_team:
             player.games_won += 1
 
     try:
