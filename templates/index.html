@@ -210,14 +210,15 @@
                 <div class="form-group">
                     <label>Uczelnia</label>
                     <div class="radio-panel">
-                        <label class="radio-label"><input type="radio" name="regUni" value="PRZ" checked> PRz</label>
-                        <label class="radio-label"><input type="radio" name="regUni" value="UR"> UR</label>
-                        <label class="radio-label"><input type="radio" name="regUni" value="Other"> Inna</label>
+                        <label class="radio-label"><input type="radio" name="regUni" value="PRZ" onchange="updateFacultyOptions()" checked> PRz</label>
+                        <label class="radio-label"><input type="radio" name="regUni" value="URZ" onchange="updateFacultyOptions()"> UR</label>
+                        <label class="radio-label"><input type="radio" name="regUni" value="Other" onchange="updateFacultyOptions()"> Inna</label>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Wydział (Kod, np. WEII)</label>
-                    <input type="text" id="regFaculty" placeholder="Opcjonalnie">
+                <div class="form-group" id="facultyGroup">
+                    <label>Wydział</label>
+                    <div class="radio-panel" id="facultyContainer">
+                        </div>
                 </div>
                 <button class="btn" onclick="registerPlayer()">Stwórz konto</button>
             </div>
@@ -233,6 +234,24 @@
                 <div class="profile-stat"><span>Wydział:</span> <span id="profFac">-</span></div>
                 <div class="profile-stat" style="margin-top: 15px;"><span>Rozegrane mecze:</span> <span id="profPlayed">-</span></div>
                 <div class="profile-stat"><span>Wygrane mecze:</span> <span id="profWon" style="color: var(--accent-green);">-</span></div>
+                
+                <h3 style="margin-top: 30px; margin-bottom: 10px; color: var(--accent-blue); border-bottom: 1px solid var(--bg-surface-hover); padding-bottom: 10px;">Ostatnie Gry</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr style="color: var(--text-muted); text-align: left;">
+                                <th>#Lobby</th>
+                                <th>Data</th>
+                                <th>Twoja Drużyna</th>
+                                <th>Zwycięzcy</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="profileHistoryBody">
+                            <tr><td colspan="5" style="text-align: center;">Ładowanie historii...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
@@ -276,6 +295,15 @@
                 <p>Kod dołączenia: <strong style="color: var(--accent-green); font-size: 20px; letter-spacing: 2px;" id="lobbyCodeDisplay">----</strong></p>
                 <p style="margin-top: 10px; color: var(--text-muted);">Host gry (ID): <span id="lobbyHostDisplay">-</span></p>
 
+                <div id="activeGameControls" style="display: none; margin-top: 20px; padding: 15px; border: 1px dashed var(--accent-green); border-radius: 8px; text-align: center;">
+                    <h3 style="color: var(--accent-green); margin-bottom: 10px;">🏆 Zgłoś Wynik Gry</h3>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 15px;">Gra jest w toku! Kto jako pierwszy skończył piwo?</p>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn" style="background: var(--accent-blue); width: auto;" onclick="finishGame('1')">Wygrała Drużyna 1</button>
+                        <button class="btn" style="background: var(--accent-red); width: auto;" onclick="finishGame('2')">Wygrała Drużyna 2</button>
+                    </div>
+                </div>
+
                 <h3 style="margin-top: 30px; margin-bottom: 10px; color: var(--accent-blue);">Lista Graczy (<span id="lobbyCountDisplay">0</span>)</h3>
                 <ul class="players-list" id="playersListContainer">
                     <li class="player-item">Pobierz dane lobby, aby zobaczyć graczy.</li>
@@ -283,6 +311,7 @@
 
                 <div style="display: flex; gap: 10px; margin-top: 30px; flex-direction: column;">
                     <button class="btn" onclick="fetchLobby()">🔄 Odśwież listę graczy</button>
+                    <button id="startGameBtn" class="btn" style="background: var(--accent-green); display: none;" onclick="startGame()">🚀 Wystartuj Grę</button>
                     <button id="leaveGameBtn" class="btn danger" style="display: none;" onclick="leaveGame()">Wyjdź z Lobby</button>
                     <button id="cancelGameBtn" class="btn danger" style="display: none;" onclick="cancelGame()">Zniszcz Lobby (Tylko Host)</button>
                 </div>
@@ -305,6 +334,7 @@
             switchView('view-profile');
             if(currentActiveLobbyId) fetchLobby();
         }
+        updateFacultyOptions(); // INICJALIZACJA WYDZIAŁÓW DLA PRz
     }
 
     function togglePassword(inputId) {
@@ -377,6 +407,55 @@
         document.getElementById('profFac').textContent = currentUser.faculty || "Brak danych";
         document.getElementById('profPlayed').textContent = currentUser.games_played;
         document.getElementById('profWon').textContent = currentUser.games_won;
+        
+        // ZACZYTUJE HISTORIĘ PRZY WEJŚCIU W PROFIL
+        fetchPlayerHistory();
+    }
+
+    async function fetchPlayerHistory() {
+        if(!currentUser) return;
+        const tbody = document.getElementById('profileHistoryBody');
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>Ładowanie historii...</td></tr>";
+
+        try {
+            const res = await fetch(`${API_URL}/players/${currentUser.player_id}/history`);
+            if (res.ok) {
+                const data = await res.json();
+                const history = data["Historia gry"]; 
+                tbody.innerHTML = "";
+
+                if (history.length === 0) {
+                    tbody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>Brak rozegranych gier.</td></tr>";
+                    return;
+                }
+
+                history.forEach(game => {
+                    let teamStr = game["Twoja drużyna"] ? `Drużyna ${game["Twoja drużyna"]}` : '-';
+                    let winnerStr = game["zwyciezcy"] ? `Drużyna ${game["zwyciezcy"]}` : '-';
+                    
+                    let statusColor = "var(--text-muted)";
+                    if(game["Status gry"] === "finished") statusColor = "var(--accent-green)";
+                    if(game["Status gry"] === "canceled") statusColor = "var(--accent-red)";
+                    
+                    let winColor = (game["zwyciezcy"] && game["zwyciezcy"] === game["Twoja drużyna"]) 
+                        ? "color: var(--accent-green); font-weight: bold;" : "";
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-weight: bold;">#${game["ID gry"]}</td>
+                            <td style="color: var(--text-muted);">${game["date"]}</td>
+                            <td>${teamStr}</td>
+                            <td style="${winColor}">${winnerStr}</td>
+                            <td style="color: ${statusColor}; text-transform: uppercase; font-size: 12px; font-weight: bold;">${game["Status gry"]}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Nie udało się załadować historii.</td></tr>";
+            }
+        } catch (err) {
+            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Błąd API podczas pobierania historii.</td></tr>";
+        }
     }
 
     function updateLobbyUIState() {
@@ -443,9 +522,12 @@
         const name = document.getElementById('regName').value;
         const email = document.getElementById('regEmail').value;
         const password = document.getElementById('regPassword').value;
+        
         const uniElement = document.querySelector('input[name="regUni"]:checked');
         const uni = uniElement ? uniElement.value : null;
-        const faculty = document.getElementById('regFaculty').value || null;
+        
+        const facElement = document.querySelector('input[name="regFac"]:checked');
+        const faculty = facElement ? facElement.value : null;
 
         if (!name || !email || !password) return showToast("Wypełnij wymagane pola (*)", "error");
         if (password.length < 6) return showToast("Hasło jest za krótkie!", "error");
@@ -576,12 +658,30 @@
 
                 const cancelBtn = document.getElementById('cancelGameBtn');
                 const leaveBtn = document.getElementById('leaveGameBtn');
+                const startBtn = document.getElementById('startGameBtn');
+                const finishControls = document.getElementById('activeGameControls');
 
-                if (currentUser && data.host_id === currentUser.player_id) {
-                    cancelBtn.style.display = 'block';
-                    leaveBtn.style.display = 'none';
+                const isHost = (currentUser && data.host_id === currentUser.player_id);
+                const stat = String(data.status).toUpperCase();
+
+                // Reset widoczności przycisków
+                cancelBtn.style.display = 'none';
+                leaveBtn.style.display = 'none';
+                startBtn.style.display = 'none';
+                finishControls.style.display = 'none';
+
+                if (isHost) {
+                    if (stat.includes('WAITING')) {
+                        startBtn.style.display = 'block';
+                        cancelBtn.style.display = 'block';
+                    } else if (stat.includes('PENDING')) {
+                        finishControls.style.display = 'block';
+                    } else {
+                        // Gra zakończona/anulowana - host może wyjść
+                        leaveBtn.style.display = 'block';
+                    }
                 } else {
-                    cancelBtn.style.display = 'none';
+                    // Gracz widzi tylko przycisk wyjścia
                     leaveBtn.style.display = 'block';
                 }
 
@@ -592,7 +692,7 @@
                     listContainer.innerHTML = "<li class='player-item'>Lobby jest puste.</li>";
                 } else {
                     data.players.forEach(player => {
-                        const teamText = player.team ? `Drużyna ${player.team}` : "Brak drużyny";
+                        const teamText = player.team ? `Drużyna ${player.team}` : "Oczekuje...";
                         const isMe = (currentUser && player.player_id === currentUser.player_id) ? " (TY)" : "";
                         const uniText = player.university ? player.university : "?";
                         
@@ -616,6 +716,45 @@
         } catch (err) { 
             showToast("Błąd łączenia z API", "error"); 
         }
+    }
+
+    async function startGame() {
+        if (!checkAuth()) return;
+        try {
+            const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: currentUser.player_id })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast("Gra wystartowała! Drużyny zostały przydzielone.", "success");
+                fetchLobby(); 
+            } else {
+                showToast(data.error || data.message, "error");
+            }
+        } catch (err) { showToast("Błąd łączenia z API", "error"); }
+    }
+
+    async function finishGame(winningTeam) {
+        if (!checkAuth()) return;
+        if (!confirm(`Czy na pewno zgłaszasz, że wygrała Drużyna ${winningTeam}? Tej operacji nie można cofnąć!`)) return;
+
+        try {
+            const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/finish`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: currentUser.player_id, winning_team: winningTeam })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                showToast(data.message, "success");
+                fetchLobby(); 
+            } else {
+                showToast(data.error || data.message, "error");
+            }
+        } catch (err) { showToast("Błąd łączenia z API", "error"); }
     }
 
     async function cancelGame() {
@@ -704,6 +843,37 @@
             tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color: var(--accent-red);'>Błąd łączenia z API</td></tr>";
         }
     }
+
+    const przFaculties = [
+        { value: "WEII", label: "WEiI" },
+        { value: "WC", label: "WCh" },
+        { value: "WZ", label: "WZ" },
+        { value: "WMiFS", label: "WMiFS" },
+        { value: "WBMiL", label: "WBMiL" },
+        { value: "WBIŚiA", label: "WBIŚiA" },
+        { value: "WMT", label: "WMT" }
+    ];
+
+    function updateFacultyOptions() {
+        const uniElement = document.querySelector('input[name="regUni"]:checked');
+        const facultyGroup = document.getElementById('facultyGroup');
+        const facultyContainer = document.getElementById('facultyContainer');
+        
+        if (!uniElement) return;
+
+        if (uniElement.value === "PRZ") {
+            facultyGroup.style.display = 'flex';
+            facultyContainer.innerHTML = przFaculties.map((fac, index) => `
+                <label class="radio-label" style="font-weight: bold;">
+                    <input type="radio" name="regFac" value="${fac.value}" ${index === 0 ? 'checked' : ''}> ${fac.label}
+                </label>
+            `).join('');
+        } else {
+            facultyGroup.style.display = 'none';
+            facultyContainer.innerHTML = ""; 
+        }
+    }
+
 </script>
 </body>
 </html>

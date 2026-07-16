@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token
-import math
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 app = Flask(__name__)
 
@@ -280,10 +280,65 @@ def start_game(game_id):
         db.session.rollback()
         return jsonify({"error": f"Błąd bazy danych: {str(e)}"}), 500
 
-@app.route('/games/<int:game_id>/finish')
+@app.route('/games/<int:game_id>/finish', methods=['POST'])
 def finish_route(game_id):
     data = request.get_json()
+    player_id = data.get('player_id')
+    winning_team = data.get('winning_team')
 
+    game = Game.query.get(game_id)
+
+    if not game:
+        return jsonify({"error": "Gra nie istnieje"}), 404
+
+    if player_id != game.host_id:
+        return jsonify({"error" : "Tylko host może zakończyć grę!"}), 403
+
+    if game.status not in [GameStatus.PENDING, 'PENDING', 'pending', 'GameStatus.PENDING']:
+        return jsonify({"error" : "Gra nie jest w toku"}), 400
+
+    game.status = GameStatus.FINISHED
+    game.winning_team = Team(winning_team)
+
+    for match in game.matches:
+        player = match.player
+        player.games_played += 1
+        if player.team == game.winning_team:
+            player.games_won += 1
+
+    try:
+        db.session.commit()
+        return jsonify({"message": "Gra zakończona! Statystyki zaktualizowane."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Błąd bazy danych: {str(e)}"}), 500
+
+
+@app.route('/players/<int:player_id>/history', methods=['GET'])
+def get_history(player_id):
+    player = Player.query.get_or_404(player_id)
+
+    history_data = []
+
+    for match in player.matches:
+        game = match.game
+        history_data.append(
+            {   
+                "ID gry" : game.game_id,
+                "ID hosta" : game.host_id,
+                "date": game.date.strftime("%Y-%m-%d"),
+                "zwyciezcy" : game.winning_team.value if game.winning_team else None,
+                "Twoja drużyna" : match.team.value if match.team else None,
+                "Status gry" : game.status.value,
+             }
+        )
+
+    return {"Gracz" : player.name, "Historia gry" : history_data}, 200
+        
+@app.route('/players/me', methods=['DELETE'])
+@jwt_required()
+def delete_account():
+    pass
 
 if __name__ == '__main__':
     app.run(debug=True)

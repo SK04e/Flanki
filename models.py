@@ -37,6 +37,7 @@ class Game(db.Model):
     winning_team = db.Column(db.Enum(Team))
     host_id = db.Column(db.Integer, db.ForeignKey('players.player_id'), nullable=False)
     code = db.Column(db.Integer, nullable=False)
+    matches = db.relationship('Match')
     
 class Player(db.Model):
     __tablename__ = 'players'
@@ -49,6 +50,8 @@ class Player(db.Model):
     faculty = db.Column(db.Enum(FacultyChoice), nullable=True)
     email = db.Column(db.String(50), unique = True, nullable = False)
     password = db.Column(db.String(128), nullable = False)
+    matches = db.relationship('Match')
+    
 
     def to_dict(self):
         return {
@@ -67,3 +70,6 @@ class Match(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('games.game_id'), primary_key=True)
     player_id = db.Column(db.Integer, db.ForeignKey('players.player_id'), primary_key=True)
     team = db.Column(db.Enum(Team), nullable=True)
+    game = db.relationship('Game')
+    player = db.relationship('Player')
+    
