@@ -50,6 +50,7 @@ class Player(db.Model):
     faculty = db.Column(db.Enum(FacultyChoice), nullable=True)
     email = db.Column(db.String(50), unique = True, nullable = False)
     password = db.Column(db.String(128), nullable = False)
+    is_verified = db.Column(db.Boolean, default=False)
     matches = db.relationship('Match')
     
 

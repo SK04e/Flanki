@@ -9,6 +9,8 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import timedelta
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
 
 app = Flask(__name__)
 
@@ -19,6 +21,17 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///fla
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False 
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME')
+
+mail = Mail(app)
+serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
 
 db.init_app(app)
 bcrypt = Bcrypt(app)
@@ -54,13 +67,50 @@ def register():
 
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:
-        new_player = Player(name=name, email=email, password=hashed, university=university, faculty=faculty)
+        new_player = Player(name=name, email=email, password=hashed, university=university, faculty=faculty, is_verified=False)
         db.session.add(new_player)
         db.session.commit()
-        return jsonify({"message": "Zarejestrowano!"}), 201
+        
+        token = serializer.dumps(email, salt='email-confirm')
+        base_url = os.getenv('APP_URL', 'http://127.0.0.1:5000')
+        confirm_url = f"{base_url}/auth/confirm/{token}"
+        
+        # Wysyłka mailem przez SMTP
+        msg = Message("Potwierdź swój adres e-mail we Flanki Hub!", recipients=[email])
+        msg.body = f"Witaj {name}!\n\nAby aktywować konto, kliknij w poniższy link:\n{confirm_url}"
+        
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"BŁĄD SMTP: {e}")
+            return jsonify({"error": "Błąd wysyłki e-mail. Sprawdź konfigurację SMTP."}), 500
+
+        return jsonify({"message": "Zarejestrowano pomyślnie! Sprawdź skrzynkę e-mail."}), 201
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+@app.route('/auth/confirm/<token>', methods=['GET'])
+def confirm_email(token):
+    try:
+        # Odczytujemy token (ważny godzinę)
+        email = serializer.loads(token, salt='email-confirm', max_age=3600)
+    except Exception:
+        return "Token jest nieważny lub wygasł.", 400
+
+    player = Player.query.filter_by(email=email).first()
+    if not player:
+        return "Nie znaleziono użytkownika.", 404
+        
+    if player.is_verified:
+        return "Konto już jest zweryfikowane. Możesz się zalogować.", 200
+        
+    # Aktywujemy!
+    player.is_verified = True
+    db.session.commit()
+    
+    return "Twoje konto zostało pomyślnie aktywowane! Możesz zamknąć tę kartę i wejść do aplikacji.", 200
 
 @app.route('/auth/login', methods=['POST'])
 def login():
@@ -70,6 +120,9 @@ def login():
     
     player = Player.query.filter_by(email=email).first()
     if player and bcrypt.check_password_hash(player.password, password):
+        if not player.is_verified:
+            return jsonify({"error": "Musisz najpierw zweryfikować swój adres e-mail!"}), 403
+
         token = create_access_token(identity=str(player.player_id))
         
         active_match = Match.query.join(Game).filter(
@@ -89,11 +142,17 @@ def login():
 def get_all_games():
     games = Game.query.filter_by(status=GameStatus.WAITING).all()
     games_data = []
+
     for game in games:
         players_count = Match.query.filter_by(game_id=game.game_id).count()
+
+        host = Player.query.get(game.host_id)
+        host_name = host.name if host else "Nieznany Host"
+
         games_data.append({
             "game_id": game.game_id,
             "host_id": game.host_id,
+            "host_name": host_name,
             "players_count": players_count
         })
     return jsonify(games_data), 200
