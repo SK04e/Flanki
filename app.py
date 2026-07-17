@@ -8,6 +8,7 @@ from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import timedelta
 
 app = Flask(__name__)
 
@@ -17,6 +18,8 @@ load_dotenv()
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///flanki.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
+
 db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
@@ -96,9 +99,9 @@ def get_all_games():
     return jsonify(games_data), 200
 
 @app.route('/games', methods=['POST'])
+@jwt_required()
 def create_game():
-    data = request.get_json()
-    creator_id = data.get('player_id')
+    creator_id = int(get_jwt_identity())
 
     active_match = Match.query.join(Game).filter(
         Match.player_id == creator_id,
@@ -126,9 +129,10 @@ def create_game():
         return jsonify({"error": f"Błąd podczas zapisu: {str(e)}"}), 400
 
 @app.route('/games/<int:game_id>', methods = ['DELETE'])
+@jwt_required()
 def cancel_game(game_id):
     data = request.get_json()
-    requester_id = data.get('player_id')
+    requester_id = int(get_jwt_identity())
 
     game = Game.query.get(game_id)
 
@@ -149,10 +153,11 @@ def cancel_game(game_id):
 
 
 @app.route('/games/join/<int:joining_game_id>', methods = ['POST'])
+@jwt_required()
 def join_match(joining_game_id):
     data = request.get_json()
     code = data.get('code')
-    player_id = data.get('player_id')
+    player_id = int(get_jwt_identity())
 
     active_match = Match.query.join(Game).filter(
         Match.player_id == player_id,
@@ -217,9 +222,9 @@ def get_players():
     return jsonify(fin_list), 200
 
 @app.route('/games/<int:game_id>/leave', methods=['POST'])
+@jwt_required()
 def leave_game(game_id):
-    data = request.get_json()
-    player_id = data.get('player_id')
+    player_id = int(get_jwt_identity())
 
     game = Game.query.get(game_id)
     if not game:
@@ -241,9 +246,9 @@ def leave_game(game_id):
         return jsonify({"error": f"Błąd podczas wychodzenia: {str(e)}"}), 500
 
 @app.route('/games/<int:game_id>/start', methods=['POST'])
+@jwt_required()
 def start_game(game_id):
-    data = request.get_json()
-    player_id = data.get('player_id')
+    player_id = int(get_jwt_identity())
 
     game = Game.query.get(game_id)
     if not game:
@@ -281,9 +286,10 @@ def start_game(game_id):
         return jsonify({"error": f"Błąd bazy danych: {str(e)}"}), 500
 
 @app.route('/games/<int:game_id>/finish', methods=['POST'])
+@jwt_required()
 def finish_route(game_id):
     data = request.get_json()
-    player_id = data.get('player_id')
+    player_id = int(get_jwt_identity())
     winning_team = data.get('winning_team')
 
     game = Game.query.get(game_id)
