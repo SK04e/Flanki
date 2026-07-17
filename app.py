@@ -53,18 +53,17 @@ def register():
     university = data.get('university')
     faculty = data.get('faculty')
     
+    # 1. Walidacja
     if not name or not email or not password:
         return jsonify({"error" : "Imię, email i hasło są wymagane!"}), 400
-        
     if len(password) < 6:
         return jsonify({"error": "Hasło musi mieć minimum 6 znaków!"}), 400
-        
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         return jsonify({"error": "Niepoprawny format adresu email!"}), 400
-    
     if Player.query.filter_by(email=email).first():
         return jsonify({"error" : "Email już istnieje"}), 409
 
+    # 2. Logika zapisu
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:
         new_player = Player(name=name, email=email, password=hashed, university=university, faculty=faculty, is_verified=False)
@@ -75,21 +74,19 @@ def register():
         base_url = os.getenv('APP_URL', 'http://127.0.0.1:5000')
         confirm_url = f"{base_url}/auth/confirm/{token}"
         
-        # Wysyłka mailem przez SMTP
+        # 3. Wysyłka maila
         msg = Message("Potwierdź swój adres e-mail we Flanki Hub!", recipients=[email])
         msg.body = f"Witaj {name}!\n\nAby aktywować konto, kliknij w poniższy link:\n{confirm_url}"
+        mail.send(msg)
         
-        try:
-            mail.send(msg)
-        except Exception as e:
-            print(f"BŁĄD SMTP: {e}")
-            return jsonify({"error": "Błąd wysyłki e-mail. Sprawdź konfigurację SMTP."}), 500
-
+        # 4. Sukces
         return jsonify({"message": "Zarejestrowano pomyślnie! Sprawdź skrzynkę e-mail."}), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        # Logujemy błąd w terminalu, żeby wiedzieć co nie wyszło
+        print(f"Błąd rejestracji: {str(e)}") 
+        return jsonify({"error": f"Błąd serwera: {str(e)}"}), 500
 
 @app.route('/auth/confirm/<token>', methods=['GET'])
 def confirm_email(token):
