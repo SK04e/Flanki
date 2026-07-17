@@ -11,6 +11,14 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import timedelta
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
+from threading import Thread
+
+def send_async_email(app, msg):
+    with app.app_context():
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"BŁĄD W TLE: {e}")
 
 app = Flask(__name__)
 
@@ -77,9 +85,11 @@ def register():
         # 3. Wysyłka maila
         msg = Message("Potwierdź swój adres e-mail we Flanki Hub!", recipients=[email])
         msg.body = f"Witaj {name}!\n\nAby aktywować konto, kliknij w poniższy link:\n{confirm_url}"
-        mail.send(msg)
         
-        # 4. Sukces
+        thr = Thread(target=send_async_email, args=[app, msg])
+        thr.start()
+        
+        # Sukces zwracamy OD RAZU, bez czekania na SMTP
         return jsonify({"message": "Zarejestrowano pomyślnie! Sprawdź skrzynkę e-mail."}), 201
 
     except Exception as e:
