@@ -151,7 +151,7 @@ def login():
 
 @app.route('/games', methods=['GET'])
 def get_all_games():
-    games = Game.query.filter_by(status=GameStatus.WAITING).all()
+    games = Game.query.filter(Game.status == GameStatus.WAITING).all()
     games_data = []
 
     for game in games:
@@ -440,6 +440,32 @@ def kick_player(game_id, player_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Błąd podczas usuwania: {str(e)}"}), 500
+
+@app.route('/games/details/<int:game_id>', methods=['POST'])
+def get_game_details(game_id):
+
+    game = Game.query.get(game_id)
+    if not game:
+        return jsonify({"error" : f"Nie znaleziono gry o id {game_id}"}), 404
+
+    players_data = []
+    for match in game.matches:
+        p_dict = match.player.to_dict()
+        # Zmieniamy na string, żeby JS miał pewność
+        p_dict['team'] = match.team.value if match.team else None 
+        players_data.append(p_dict)
+
+    host = Player.query.get(game.host_id)
+    
+    return jsonify({
+        "game_id": game.game_id,
+        "status": game.status.value,
+        "winning_team": game.winning_team.value if game.winning_team else None,
+        "date": game.date.strftime("%Y-%m-%d"),
+        "host_name": host.name if host else "Nieznany",
+        "players": players_data
+    }), 200
+        
 
 if __name__ == '__main__':
     app.run(debug=True)

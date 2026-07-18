@@ -4,3 +4,4 @@ instance/
 *.db
 __pycache__/
 todo.md
+verify_all.py

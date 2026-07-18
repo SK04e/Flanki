@@ -8,8 +8,13 @@ let lobbyRefreshInterval = null;
 
 window.onload = () => {
     updateAuthUI();
+    
+    handleInviteLink();
+    
     if(token) {
-        switchView('view-profile');
+        if(!localStorage.getItem('pending_invite_game') && !currentActiveLobbyId) {
+             switchView('view-profile');
+        }
         if(currentActiveLobbyId) updateLobbyUIState();
     }
     updateFacultyOptions();
@@ -55,13 +60,11 @@ function showToast(message, type = "success") {
 
 // ---- UNIWERSALNY SYSTEM ŁAPANIA BŁĘDÓW JWT I FLASKA ---- //
 function handleApiError(res, data) {
-    // 401/422 oznacza, że token wygasł lub serwer został zrestartowany i token przepadł
     if (res.status === 401 || res.status === 422) {
         logout();
         showToast("Sesja wygasła. Zaloguj się ponownie.", "error");
         return;
     }
-    // Ubezpieczenie na wypadek "data.msg" z flask-jwt-extended
     const errorText = data.error || data.message || data.msg || `Nieznany błąd (${res.status})`;
     showToast(errorText, "error");
 }
@@ -135,7 +138,7 @@ async function fetchPlayerHistory() {
                 let winColor = (game["zwyciezcy"] && game["zwyciezcy"] === game["Twoja drużyna"]) ? "color: var(--accent-green); font-weight: bold;" : "color: var(--text-main);";
 
                 tbody.innerHTML += `
-                    <tr>
+                    <tr onclick="openGameDetails(${game["ID gry"]})" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
                         <td style="font-weight: bold; color: var(--accent-blue);">#${game["ID gry"]}</td>
                         <td style="color: var(--text-muted); font-size: 13px;">${game["date"]}</td>
                         <td>${teamStr}</td>
@@ -180,6 +183,9 @@ async function login() {
             updateAuthUI();
             showToast("Zalogowano pomyślnie!", "success");
             switchView('view-profile');
+            
+            await processPendingInvite();
+            
         } else {
             handleApiError(res, data);
         }
@@ -247,29 +253,51 @@ async function fetchActiveGames() {
         listContainer.innerHTML = ""; 
 
         if (games.length === 0) {
-            listContainer.innerHTML = "<div style='padding: 20px; text-align: center; color: var(--text-muted);'>Brak oczekujących gier. Stwórz nową!</div>";
+            listContainer.innerHTML = "<div style='padding: 20px; text-align: center; color: var(--text-muted);'>Brak oczekujących gier.</div>";
             return;
         }
 
         games.forEach(game => {
             const hostNameStr = game.host_name ? game.host_name : `Host #${game.host_id}`;
+            const detailsId = `details-${game.game_id}`;
+            
             listContainer.innerHTML += `
-                <details class="lobby-accordion">
+                <details class="lobby-accordion" onclick="loadAccordionDetails(${game.game_id}, '${detailsId}')">
                     <summary class="lobby-summary">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <span style="background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent-blue); color: var(--accent-blue); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">#${game.game_id}</span>
                             <span>${hostNameStr}</span>
                         </div>
-                        <span style="color: var(--text-muted); font-size: 13px; font-weight: normal;">Gracze: <strong style="color: var(--text-main);">${game.players_count}</strong></span>
+                        <span style="color: var(--text-muted); font-size: 13px;">Gracze: <strong>${game.players_count}</strong></span>
                     </summary>
-                    <div class="lobby-details-content">
-                        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 15px;">Gra w trybie standardowym. Dołącz, aby zobaczyć przydział do drużyny.</p>
-                        <button class="btn" style="width: auto; padding: 10px 20px; margin-top: 0; font-size: 14px;" onclick="joinGame(${game.game_id})">Wejdź do Lobby 🔒</button>
+                    <div id="${detailsId}" class="lobby-details-content" style="padding: 15px; background: rgba(0,0,0,0.1);">
+                        Ładowanie graczy...
                     </div>
                 </details>
             `;
         });
-    } catch (err) { showToast("Błąd podczas pobierania listy gier.", "error"); }
+    } catch (err) { showToast("Błąd pobierania listy gier.", "error"); }
+}
+
+async function loadAccordionDetails(gameId, containerId) {
+    const container = document.getElementById(containerId);
+    try {
+        const res = await fetch(`${API_URL}/games/${gameId}`);
+        const data = await res.json();
+        if(res.ok) {
+            container.innerHTML = `
+                <p style="margin-bottom:10px;">Status: ${data.status}</p>
+                <ul style="list-style: none; padding: 0;">
+                    ${data.players.map(p => `<li style="padding: 3px 0; border-bottom: 1px solid #333;">${p.name} (${p.university || '?'})</li>`).join('')}
+                </ul>
+                <button class="btn" style="margin-top:10px; background: var(--accent-green);" onclick="joinGame(${gameId})">Wejdź do Lobby</button>
+            `;
+        } else {
+            container.innerHTML = "Błąd ładowania szczegółów.";
+        }
+    } catch (e) {
+        container.innerHTML = "Nie można pobrać danych.";
+    }
 }
 
 async function joinGame(gameId) {
@@ -622,5 +650,112 @@ function updateFacultyOptions() {
     } else {
         facultyGroup.style.display = 'none';
         facultyContainer.innerHTML = ""; 
+    }
+}
+
+
+// ---- SYSTEM ZAPROSZEŃ Z LINKU ---- //
+
+function copyInviteLink() {
+    const gameId = document.getElementById('lobbyIdDisplay').textContent;
+    const code = document.getElementById('lobbyCodeDisplay').textContent;
+    if(!gameId || !code || gameId === "?" || code === "----") return;
+
+    const link = `${window.location.origin}/?game=${gameId}&code=${code}`;
+    
+    navigator.clipboard.writeText(link).then(() => {
+        showToast("Link zaproszenia skopiowany do schowka!", "success");
+    }).catch(() => {
+        showToast("Nie udało się skopiować linku.", "error");
+    });
+}
+
+function handleInviteLink() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteGame = urlParams.get('game');
+    const inviteCode = urlParams.get('code');
+
+    if (inviteGame && inviteCode) {
+        localStorage.setItem('pending_invite_game', inviteGame);
+        localStorage.setItem('pending_invite_code', inviteCode);
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    processPendingInvite();
+}
+
+async function processPendingInvite() {
+    const pendingGame = localStorage.getItem('pending_invite_game');
+    const pendingCode = localStorage.getItem('pending_invite_code');
+
+    if (pendingGame && pendingCode && token && currentUser) {
+        localStorage.removeItem('pending_invite_game');
+        localStorage.removeItem('pending_invite_code');
+        
+        try {
+            const res = await fetch(`${API_URL}/games/join/${pendingGame}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ code: pendingCode })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                showToast("Dołączono automatycznie z linku!", "success");
+                currentActiveLobbyId = pendingGame;
+                localStorage.setItem('active_lobby_id', pendingGame);
+                switchView('view-lobby');
+            } else if (data.error && data.error.includes('Jesteś już w grze')) {
+                // Ciche zignorowanie
+            } else {
+                showToast(`Nie udało się dołączyć: ${data.error || data.message}`, "error");
+            }
+        } catch(e) {
+            console.error("Błąd auto-dołączania", e);
+        }
+    }
+}
+
+async function openGameDetails(gameId) {
+    const list1 = document.getElementById('team1List');
+    const list2 = document.getElementById('team2List');
+    
+    document.getElementById('detGameId').textContent = gameId;
+    list1.innerHTML = "";
+    list2.innerHTML = "";
+
+    try {
+        const res = await fetch(`${API_URL}/games/details/${gameId}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (res.ok) {
+            document.getElementById('detDate').textContent = data.date;
+            document.getElementById('detHost').textContent = data.host_name;
+            document.getElementById('detStatus').textContent = data.status;
+            document.getElementById('detWinner').textContent = data.winning_team ? `Drużyna ${data.winning_team}` : "Brak";
+
+            data.players.forEach(p => {
+                const li = document.createElement('li');
+                li.style.padding = "5px 0";
+                li.textContent = p.name;
+                
+                // TU BYŁ BŁĄD! Baza wysyła cyfry, a nie litery!
+                const team = p.team ? p.team.toString().toUpperCase() : null;
+
+                if (team === 'A' || team === '1') {
+                    list1.appendChild(li);
+                } else if (team === 'B' || team === '2') {
+                    list2.appendChild(li);
+                } else {
+                    li.textContent += " (Bez drużyny)";
+                    li.style.color = "#ff4d4d";
+                    list1.appendChild(li); 
+                }
+            });
+            switchView('view-game-details');
+        } else {
+            showToast("Błąd: " + data.error, "error");
+        }
+    } catch (err) {
+        showToast("Nie udało się pobrać szczegółów.", "error");
     }
 }
