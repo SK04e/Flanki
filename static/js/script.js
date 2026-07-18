@@ -4,7 +4,7 @@ let token = localStorage.getItem('jwt_token') || null;
 let currentUser = JSON.parse(localStorage.getItem('current_user')) || null;
 let currentActiveLobbyId = localStorage.getItem('active_lobby_id') || null;
 let autoKickInterval = null; 
-let lobbyRefreshInterval = null; // Zmienna do auto-odświeżania lobby
+let lobbyRefreshInterval = null; 
 
 window.onload = () => {
     updateAuthUI();
@@ -51,6 +51,19 @@ function showToast(message, type = "success") {
     toast.textContent = message;
     toast.className = `show ${type}`;
     setTimeout(() => toast.className = "", 3000);
+}
+
+// ---- UNIWERSALNY SYSTEM ŁAPANIA BŁĘDÓW JWT I FLASKA ---- //
+function handleApiError(res, data) {
+    // 401/422 oznacza, że token wygasł lub serwer został zrestartowany i token przepadł
+    if (res.status === 401 || res.status === 422) {
+        logout();
+        showToast("Sesja wygasła. Zaloguj się ponownie.", "error");
+        return;
+    }
+    // Ubezpieczenie na wypadek "data.msg" z flask-jwt-extended
+    const errorText = data.error || data.message || data.msg || `Nieznany błąd (${res.status})`;
+    showToast(errorText, "error");
 }
 
 function updateAuthUI() {
@@ -168,9 +181,9 @@ async function login() {
             showToast("Zalogowano pomyślnie!", "success");
             switchView('view-profile');
         } else {
-            showToast(data.error || "Błąd logowania", "error");
+            handleApiError(res, data);
         }
-    } catch (err) { showToast("Brak połączenia z serwerem.", "error"); }
+    } catch (err) { showToast("Błąd łączenia z serwerem.", "error"); }
 }
 
 function logout() {
@@ -210,8 +223,8 @@ async function registerPlayer() {
         if (res.ok) {
             showToast("Zarejestrowano! Sprawdź email, aby aktywować konto.", "success");
             switchView('view-login'); 
-        } else { showToast(data.error || data.message, "error"); }
-    } catch (err) { showToast("Brak połączenia z API.", "error"); }
+        } else { handleApiError(res, data); }
+    } catch (err) { showToast("Błąd łączenia z API.", "error"); }
 }
 
 function checkAuth() {
@@ -223,7 +236,6 @@ function checkAuth() {
     return true;
 }
 
-// ---- POPRAWIONA LISTA GIER ---- //
 async function fetchActiveGames() {
     if (!checkAuth()) return;
     const listContainer = document.getElementById('gamesBrowserList');
@@ -260,7 +272,6 @@ async function fetchActiveGames() {
     } catch (err) { showToast("Błąd podczas pobierania listy gier.", "error"); }
 }
 
-// ---- POPRAWIONE DOŁĄCZANIE (Z POST) ---- //
 async function joinGame(gameId) {
     if (!checkAuth()) return;
     const code = prompt(`Wpisz tajny 4-cyfrowy kod PIN dla Lobby #${gameId}:`);
@@ -273,7 +284,7 @@ async function joinGame(gameId) {
                 'Content-Type': 'application/json', 
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ code: code }) // Wysyłamy kod w JSON do API
+            body: JSON.stringify({ code: code })
         });
         const data = await res.json();
 
@@ -283,7 +294,7 @@ async function joinGame(gameId) {
             localStorage.setItem('active_lobby_id', gameId);
             switchView('view-lobby');
         } else { 
-            showToast(data.error || data.message, "error"); 
+            handleApiError(res, data); 
         }
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
@@ -303,12 +314,11 @@ async function createGame() {
             localStorage.setItem('active_lobby_id', data.game_id);
             switchView('view-lobby');
         } else { 
-            showToast(data.error || data.message, "error"); 
+            handleApiError(res, data);
         }
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
-// ---- ZARZĄDZANIE EKRANEM LOBBY (Auto-Odświeżanie) ---- //
 function updateLobbyUIState() {
     const emptyState = document.getElementById('lobbyEmptyState');
     const content = document.getElementById('lobbyContent');
@@ -316,19 +326,17 @@ function updateLobbyUIState() {
     if (!currentActiveLobbyId) {
         emptyState.style.display = 'block';
         content.style.display = 'none';
-        if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); // Zatrzymaj odświeżanie
+        if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); 
     } else {
         emptyState.style.display = 'none';
         content.style.display = 'block';
         fetchLobby();
         
-        // Zabezpieczenie przed wielokrotnym odpalaniem interwału
         if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval);
-        lobbyRefreshInterval = setInterval(fetchLobby, 3000); // Polling co 3 sekundy
+        lobbyRefreshInterval = setInterval(fetchLobby, 3000); 
     }
 }
 
-// ---- POBIERANIE I RYSOWANIE LOBBY Z PRZYCISKIEM KICK ---- //
 async function fetchLobby() {
     if(!currentActiveLobbyId) return updateLobbyUIState();
 
@@ -339,7 +347,6 @@ async function fetchLobby() {
         if (res.ok) {
             const stat = String(data.status).toUpperCase();
             
-            // LOGIKA WYRZUCENIA: Sprawdź, czy gracz nadal jest na liście w trwającej grze
             const amIStillInLobby = data.players.some(p => p.player_id === currentUser.player_id);
             if (!amIStillInLobby && stat === 'WAITING') {
                 showToast("Zostałeś wyrzucony z lobby przez Hosta.", "error");
@@ -352,7 +359,6 @@ async function fetchLobby() {
 
             document.getElementById('lobbyIdDisplay').textContent = data.game_id;
             
-            // Status wizualny
             const badge = document.getElementById('lobbyStatusBadge');
             badge.textContent = stat;
             badge.style.color = "#fff";
@@ -371,16 +377,14 @@ async function fetchLobby() {
 
             const isHost = (currentUser && data.host_id === currentUser.player_id);
 
-            // Reset
             cancelBtn.style.display = 'none';
             leaveBtn.style.display = 'none';
             startBtn.style.display = 'none';
             finishControls.style.display = 'none';
             matchAlert.style.display = 'none';
 
-            // LOGIKA AUTO-KICK DLA ZAKOŃCZONEJ GRY
             if (stat === 'FINISHED' || stat === 'CANCELED') {
-                if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); // Zatrzymaj polling
+                if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); 
 
                 if (!autoKickInterval) {
                     let sec = 5;
@@ -401,9 +405,9 @@ async function fetchLobby() {
                             autoKickInterval = null;
                             currentActiveLobbyId = null;
                             localStorage.removeItem('active_lobby_id');
-                            document.getElementById('lobbyContent').style.borderColor = 'var(--glass-border)'; // reset
+                            document.getElementById('lobbyContent').style.borderColor = 'var(--glass-border)'; 
                             switchView('view-home');
-                            showToast("Pomyślnie opuszczono zakończony mecz.", "success");
+                            showToast("Pomyślnie opuszczono mecz.", "success");
                         }
                     }, 1000);
                 }
@@ -433,7 +437,6 @@ async function fetchLobby() {
                     const uniText = player.university ? player.university : "?";
                     const isHostIcon = (player.player_id === data.host_id) ? " 👑" : "";
 
-                    // GENEROWANIE PRZYCISKU WYRZUĆ TYLKO DLA HOSTA
                     let kickBtnHtml = "";
                     if (isHost && player.player_id !== currentUser.player_id && stat === 'WAITING') {
                         kickBtnHtml = `<button class="btn danger" style="padding: 4px 8px; font-size: 12px; margin-left: 10px; width: auto; background: transparent; border: 1px solid var(--accent-red); color: var(--accent-red);" onclick="kickPlayer(${data.game_id}, ${player.player_id})">Wyrzuć</button>`;
@@ -453,18 +456,14 @@ async function fetchLobby() {
                 });
             }
         } else {
-            // Lobby usunięte z bazy
             currentActiveLobbyId = null;
             localStorage.removeItem('active_lobby_id');
             updateLobbyUIState();
             showToast("To lobby już nie istnieje", "error");
         }
-    } catch (err) { 
-        console.error("Błąd odświeżania:", err); 
-    }
+    } catch (err) { console.error("Błąd odświeżania:", err); }
 }
 
-// ---- FUNKCJA WYRZUCANIA GRACZA ---- //
 async function kickPlayer(gameId, playerId) {
     if(!confirm("Czy na pewno chcesz wyrzucić tego gracza z lobby?")) return;
 
@@ -477,10 +476,8 @@ async function kickPlayer(gameId, playerId) {
 
         if (res.ok) {
             showToast("Wyrzucono gracza pomyślnie.", "success");
-            fetchLobby(); // Natychmiastowe odświeżenie po wyrzuceniu
-        } else {
-            showToast(data.error || "Błąd podczas wyrzucania.", "error");
-        }
+            fetchLobby(); 
+        } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd komunikacji z serwerem.", "error"); }
 }
 
@@ -496,7 +493,7 @@ async function startGame() {
         if (res.ok) {
             showToast("Gra wystartowała! Drużyny zostały przydzielone.", "success");
             fetchLobby(); 
-        } else { showToast(data.error || data.message, "error"); }
+        } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
@@ -515,7 +512,7 @@ async function finishGame(winningTeam) {
         if (res.ok) {
             showToast("Wynik zapisany. Mecz zakończony!", "success");
             fetchLobby(); 
-        } else { showToast(data.error || data.message, "error"); }
+        } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
@@ -537,7 +534,7 @@ async function cancelGame() {
             currentActiveLobbyId = null; 
             localStorage.removeItem('active_lobby_id');
             switchView('view-home'); 
-        } else { showToast(data.error || data.message, "error"); }
+        } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
@@ -559,7 +556,7 @@ async function leaveGame() {
             currentActiveLobbyId = null; 
             localStorage.removeItem('active_lobby_id');
             switchView('view-home');
-        } else { showToast(data.error || data.message, "error"); }
+        } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
