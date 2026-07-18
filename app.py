@@ -12,13 +12,18 @@ from datetime import timedelta
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from threading import Thread
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def send_async_email(app, msg):
     with app.app_context():
         try:
             mail.send(msg)
+            logging.info(f"SUKCES: Mail do {msg.recipients[0]} został wysłany z serwera!")
         except Exception as e:
             print(f"BŁĄD W TLE: {e}")
+            logging.error(f"KRYTYCZNY BŁĄD WYSYŁKI MAILA W TLE: {str(e)}")
 
 app = Flask(__name__)
 
@@ -82,26 +87,24 @@ def register():
         base_url = os.getenv('APP_URL', 'http://127.0.0.1:5000')
         confirm_url = f"{base_url}/auth/confirm/{token}"
         
-        # 3. Wysyłka maila
+        # 3. Wysyłka maila w tle
+        logging.info(f"Rozpoczynam próbę wysyłki maila do {email}...")
         msg = Message("Potwierdź swój adres e-mail we Flanki Hub!", recipients=[email])
         msg.body = f"Witaj {name}!\n\nAby aktywować konto, kliknij w poniższy link:\n{confirm_url}"
         
         thr = Thread(target=send_async_email, args=[app, msg])
         thr.start()
         
-        # Sukces zwracamy OD RAZU, bez czekania na SMTP
         return jsonify({"message": "Zarejestrowano pomyślnie! Sprawdź skrzynkę e-mail."}), 201
 
     except Exception as e:
         db.session.rollback()
-        # Logujemy błąd w terminalu, żeby wiedzieć co nie wyszło
-        print(f"Błąd rejestracji: {str(e)}") 
+        logging.error(f"BŁĄD ZAPISU DO BAZY PODCZAS REJESTRACJI: {str(e)}") 
         return jsonify({"error": f"Błąd serwera: {str(e)}"}), 500
 
 @app.route('/auth/confirm/<token>', methods=['GET'])
 def confirm_email(token):
     try:
-        # Odczytujemy token (ważny godzinę)
         email = serializer.loads(token, salt='email-confirm', max_age=3600)
     except Exception:
         return "Token jest nieważny lub wygasł.", 400
@@ -113,7 +116,6 @@ def confirm_email(token):
     if player.is_verified:
         return "Konto już jest zweryfikowane. Możesz się zalogować.", 200
         
-    # Aktywujemy!
     player.is_verified = True
     db.session.commit()
     
