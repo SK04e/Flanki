@@ -415,6 +415,31 @@ def get_history(player_id):
 @jwt_required()
 def delete_account():
     pass
+    #usuwanie konta
+
+@app.route('/games/<int:game_id>/kick/<int:player_id>', methods=['DELETE'])
+@jwt_required()
+def kick_player(game_id, player_id):
+    host_id = int(get_jwt_identity())
+
+    if host_id == player_id:
+        return jsonify({"error": "Nie możesz wyrzucić samego siebie z lobby!"}), 400
+
+    game = Game.query.filter(Game.game_id==game_id, Game.host_id == host_id, Game.status == GameStatus.WAITING).first()
+    if not game:
+        return jsonify({"error" : "Gra nie istnieje lub nie jesteś hostem"}), 403
+    
+    player_to_kick = Match.query.filter(Match.player_id==player_id, Match.game_id == game_id ).first()
+    if not player_to_kick:
+        return jsonify({"error" : "Nie ma gracza o tym ID w tym lobby"})
+    
+    try:
+        db.session.delete(player_to_kick)
+        db.session.commit()
+        return jsonify({"message": "Gracz został wyrzucony z lobby."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Błąd podczas usuwania: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
