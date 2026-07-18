@@ -9,21 +9,38 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import timedelta
-from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from threading import Thread
 import logging
+import requests
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def send_async_email(app, msg):
-    with app.app_context():
-        try:
-            mail.send(msg)
-            logging.info(f"SUKCES: Mail do {msg.recipients[0]} został wysłany z serwera!")
-        except Exception as e:
-            print(f"BŁĄD W TLE: {e}")
-            logging.error(f"KRYTYCZNY BŁĄD WYSYŁKI MAILA W TLE: {str(e)}")
+def send_async_email(email_to, name, confirm_url):
+    api_key = os.getenv('BREVO_API_KEY')
+    url = "https://api.brevo.com/v3/smtp/email"
+    
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "sender": {"name": "Flanki Hub", "email": "flankihub@gmail.com"},
+        "to": [{"email": email_to}],
+        "subject": "Potwierdź swój adres e-mail we Flanki Hub!",
+        "htmlContent": f"<p>Witaj {name}!</p><p>Aby aktywować konto, kliknij w poniższy link:</p><p><a href='{confirm_url}'>Aktywuj konto</a></p>"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code in [200, 201]:
+            logging.info(f"SUKCES: Mail do {email_to} wysłany przez API Brevo!")
+        else:
+            logging.error(f"BŁĄD BREVO API: {response.text}")
+    except Exception as e:
+        logging.error(f"KRYTYCZNY BŁĄD REQUESTS W TLE: {str(e)}")
 
 app = Flask(__name__)
 
@@ -35,15 +52,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
 
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp-relay.brevo.com')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False 
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = 'flankihub@gmail.com'
-
-mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
 
 db.init_app(app)
@@ -66,7 +74,6 @@ def register():
     university = data.get('university')
     faculty = data.get('faculty')
     
-    # 1. Walidacja
     if not name or not email or not password:
         return jsonify({"error" : "Imię, email i hasło są wymagane!"}), 400
     if len(password) < 6:
@@ -76,7 +83,6 @@ def register():
     if Player.query.filter_by(email=email).first():
         return jsonify({"error" : "Email już istnieje"}), 409
 
-    # 2. Logika zapisu
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:
         new_player = Player(name=name, email=email, password=hashed, university=university, faculty=faculty, is_verified=False)
@@ -87,12 +93,8 @@ def register():
         base_url = os.getenv('APP_URL', 'http://127.0.0.1:5000')
         confirm_url = f"{base_url}/auth/confirm/{token}"
         
-        # 3. Wysyłka maila w tle
-        logging.info(f"Rozpoczynam próbę wysyłki maila do {email}...")
-        msg = Message("Potwierdź swój adres e-mail we Flanki Hub!", recipients=[email])
-        msg.body = f"Witaj {name}!\n\nAby aktywować konto, kliknij w poniższy link:\n{confirm_url}"
-        
-        thr = Thread(target=send_async_email, args=[app, msg])
+        logging.info(f"Rozpoczynam wysyłkę przez API do {email}...")
+        thr = Thread(target=send_async_email, args=[email, name, confirm_url])
         thr.start()
         
         return jsonify({"message": "Zarejestrowano pomyślnie! Sprawdź skrzynkę e-mail."}), 201
