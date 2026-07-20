@@ -5,3 +5,4 @@ instance/
 __pycache__/
 todo.md
 verify_all.py
+test_accounts.py

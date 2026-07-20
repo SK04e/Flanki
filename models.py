@@ -19,6 +19,10 @@ class UniversityChoice(enum.Enum):
     URZ = "Urz"
     Other = "Inny"
 
+class GameMode(enum.Enum):
+    MANUAL = "Manual"
+    SHUFFLE = 'Shuffle'
+
 class FacultyChoice(enum.Enum):
     WEII = 'Wydział Elektrotechniki i Informatyki'
     WC = 'Wydział Chemiczny'
@@ -37,6 +41,8 @@ class Game(db.Model):
     winning_team = db.Column(db.Enum(Team))
     host_id = db.Column(db.Integer, db.ForeignKey('players.player_id'), nullable=False)
     code = db.Column(db.Integer, nullable=False)
+    is_locked = db.Column(db.Boolean, default=False)
+    game_mode = db.Column(db.String(20), default='MANUAL')
     matches = db.relationship('Match')
     
 class Player(db.Model):

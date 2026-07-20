@@ -260,13 +260,16 @@ async function fetchActiveGames() {
         games.forEach(game => {
             const hostNameStr = game.host_name ? game.host_name : `Host #${game.host_id}`;
             const detailsId = `details-${game.game_id}`;
+            const lockIcon = game.is_locked ? "🔒 " : "🔓 ";
+            const modeText = game.game_mode === 'SHUFFLE' ? "Losowy" : "Własny";
             
             listContainer.innerHTML += `
                 <details class="lobby-accordion" onclick="loadAccordionDetails(${game.game_id}, '${detailsId}')">
                     <summary class="lobby-summary">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <span style="background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent-blue); color: var(--accent-blue); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">#${game.game_id}</span>
-                            <span>${hostNameStr}</span>
+                            <span>${lockIcon}${hostNameStr}</span>
+                            <span style="font-size: 11px; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px;">Tryb: ${modeText}</span>
                         </div>
                         <span style="color: var(--text-muted); font-size: 13px;">Gracze: <strong>${game.players_count}</strong></span>
                     </summary>
@@ -275,7 +278,7 @@ async function fetchActiveGames() {
                     </div>
                 </details>
             `;
-        });
+        }); 
     } catch (err) { showToast("Błąd pobierania listy gier.", "error"); }
 }
 
@@ -386,44 +389,77 @@ async function fetchLobby() {
             }
 
             document.getElementById('lobbyIdDisplay').textContent = data.game_id;
+            const hostDisplay = document.getElementById('lobbyHostDisplay');
+            if(hostDisplay) hostDisplay.textContent = data.host_name || `Host #${data.host_id}`;
             
-            const badge = document.getElementById('lobbyStatusBadge');
-            badge.textContent = stat;
-            badge.style.color = "#fff";
-            if(stat.includes('WAITING')) badge.style.background = "var(--accent-blue)";
-            if(stat.includes('PENDING')) badge.style.background = "var(--accent-green)";
-            if(stat.includes('FINISHED')) badge.style.background = "var(--glass-border)";
-            if(stat.includes('CANCELED')) badge.style.background = "var(--accent-red)";
+            // Nowoczesny podział pinu na 4 kafelki
+            const codeDisplay = document.getElementById('lobbyCodeDisplay');
+            if (codeDisplay) {
+                codeDisplay.innerHTML = '';
+                const codeStr = String(data.code || "----");
+                for(let char of codeStr) {
+                    codeDisplay.innerHTML += `<span class="flex h-16 w-12 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 font-mono text-4xl font-bold text-blue-400">${char}</span>`;
+                }
+            }
+            
+            const isHost = (currentUser && data.host_id === currentUser.player_id);
 
-            document.getElementById('lobbyCodeDisplay').textContent = data.code;
-            
+            const modeBadge = document.getElementById('lobbyModeBadge');
+            const statusBadge = document.getElementById('lobbyStatusBadge'); 
+            const hostControls = document.getElementById('hostControls');
+            const teamSelectionControls = document.getElementById('teamSelectionControls');
+            const toggleLockBtn = document.getElementById('toggleLockBtn');
+            const toggleModeBtn = document.getElementById('toggleModeBtn');
+            const shuffleBtn = document.getElementById('shuffleBtn');
+
             const cancelBtn = document.getElementById('cancelGameBtn');
             const leaveBtn = document.getElementById('leaveGameBtn');
             const startBtn = document.getElementById('startGameBtn');
             const finishControls = document.getElementById('activeGameControls');
             const matchAlert = document.getElementById('matchFinishAlert');
+            const manualTeamButtons = document.getElementById('manualTeamButtons');
+            const shuffleNotice = document.getElementById('shuffleNotice');
 
-            const isHost = (currentUser && data.host_id === currentUser.player_id);
+            // Aktualizacja Statusu
+            if (statusBadge) {
+                statusBadge.textContent = stat;
+                statusBadge.className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ring-1 ring-inset";
+                if(stat.includes('WAITING')) statusBadge.classList.add("bg-blue-500/15", "text-blue-400", "ring-blue-500/30");
+                if(stat.includes('PENDING')) statusBadge.classList.add("bg-yellow-500/15", "text-yellow-500", "ring-yellow-500/30");
+                if(stat.includes('FINISHED')) statusBadge.classList.add("bg-slate-700/50", "text-slate-400", "ring-slate-700");
+                if(stat.includes('CANCELED')) statusBadge.classList.add("bg-red-500/15", "text-red-400", "ring-red-500/30");
+            }
 
-            cancelBtn.style.display = 'none';
-            leaveBtn.style.display = 'none';
-            startBtn.style.display = 'none';
-            finishControls.style.display = 'none';
-            matchAlert.style.display = 'none';
+            if (modeBadge) {
+                modeBadge.textContent = data.game_mode === 'SHUFFLE' ? "LOSOWY" : "WYBÓR";
+                if(data.is_locked) {
+                    modeBadge.textContent += " 🔒";
+                    modeBadge.classList.replace("text-slate-200", "text-red-400");
+                } else {
+                    modeBadge.classList.replace("text-red-400", "text-slate-200");
+                }
+            }
+
+            if (hostControls) hostControls.style.display = 'none';
+            if (teamSelectionControls) teamSelectionControls.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            if (leaveBtn) leaveBtn.style.display = 'none';
+            if (startBtn) startBtn.style.display = 'none';
+            if (finishControls) finishControls.style.display = 'none';
+            if (matchAlert) matchAlert.style.display = 'none';
 
             if (stat === 'FINISHED' || stat === 'CANCELED') {
                 if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); 
-
                 if (!autoKickInterval) {
                     let sec = 5;
-                    matchAlert.className = stat === 'FINISHED' ? 'match-alert win' : 'match-alert loss';
-                    matchAlert.innerHTML = `
-                        ${stat === 'FINISHED' ? 'MECZ ZAKOŃCZONY' : 'MECZ ANULOWANY'} <br>
-                        <span style="font-size: 14px; font-weight: normal; color: var(--text-main);">Auto-wyjście do menu za <b id="kickCountdown">${sec}</b> sekund...</span>
-                    `;
-                    matchAlert.style.display = 'block';
-                    document.getElementById('lobbyContent').style.borderColor = stat === 'FINISHED' ? 'var(--accent-green)' : 'var(--accent-red)';
-
+                    if (matchAlert) {
+                        matchAlert.className = `p-4 mb-4 rounded-xl text-center font-bold border ${stat === 'FINISHED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`;
+                        matchAlert.innerHTML = `
+                            ${stat === 'FINISHED' ? 'MECZ ZAKOŃCZONY' : 'MECZ ANULOWANY'} <br>
+                            <span class="text-xs font-normal opacity-80 mt-1 block">Powrót do menu za <b id="kickCountdown">${sec}</b>s...</span>
+                        `;
+                        matchAlert.style.display = 'block';
+                    }
                     autoKickInterval = setInterval(() => {
                         sec--;
                         let kCount = document.getElementById('kickCountdown');
@@ -433,22 +469,36 @@ async function fetchLobby() {
                             autoKickInterval = null;
                             currentActiveLobbyId = null;
                             localStorage.removeItem('active_lobby_id');
-                            document.getElementById('lobbyContent').style.borderColor = 'var(--glass-border)'; 
                             switchView('view-home');
-                            showToast("Pomyślnie opuszczono mecz.", "success");
+                            showToast("Zakończono.", "success");
                         }
                     }, 1000);
                 }
             } else {
                 if (isHost) {
                     if (stat.includes('WAITING')) {
-                        startBtn.style.display = 'block';
-                        cancelBtn.style.display = 'block';
+                        if (hostControls) hostControls.style.display = 'block';
+                        if (startBtn) startBtn.style.display = 'block';
+                        if (cancelBtn) cancelBtn.style.display = 'block';
+                        
+                        if (toggleLockBtn) toggleLockBtn.textContent = data.is_locked ? "🔓 Odblokuj" : "🔒 Zablokuj";
+                        if (toggleModeBtn) toggleModeBtn.textContent = data.game_mode === 'SHUFFLE' ? "Tryb: Wybór" : "Tryb: Losowy";
+                        if (shuffleBtn) shuffleBtn.style.display = data.game_mode === 'SHUFFLE' ? 'flex' : 'none';
                     } else if (stat.includes('PENDING')) {
-                        finishControls.style.display = 'block';
+                        if (finishControls) finishControls.style.display = 'block';
                     }
                 } else {
-                    leaveBtn.style.display = 'block';
+                    if (leaveBtn) leaveBtn.style.display = 'block';
+                    if (stat.includes('WAITING')) {
+                        if (teamSelectionControls) teamSelectionControls.style.display = 'block';
+                        if (data.game_mode === 'SHUFFLE') {
+                            manualTeamButtons.style.display = 'none';
+                            shuffleNotice.style.display = 'block';
+                        } else {
+                            manualTeamButtons.style.display = 'grid';
+                            shuffleNotice.style.display = 'none';
+                        }
+                    }
                 }
             }
 
@@ -457,28 +507,41 @@ async function fetchLobby() {
             listContainer.innerHTML = ""; 
 
             if (data.players.length === 0) {
-                listContainer.innerHTML = "<li class='player-item' style='justify-content:center; border:none; color:var(--text-muted);'>Lobby jest puste.</li>";
+                listContainer.innerHTML = "<li class='text-center text-slate-500 py-4 text-sm'>Pusto.</li>";
             } else {
                 data.players.forEach(player => {
-                    const teamText = player.team ? `Drużyna ${player.team}` : "Oczekuje...";
-                    const isMe = (currentUser && player.player_id === currentUser.player_id) ? " <span style='color:var(--accent-green); font-size: 12px; border: 1px solid var(--accent-green); padding: 1px 4px; border-radius: 4px;'>TY</span>" : "";
-                    const uniText = player.university ? player.university : "?";
-                    const isHostIcon = (player.player_id === data.host_id) ? " 👑" : "";
+                    let teamBadgeHtml = `<span class="inline-flex items-center rounded-full bg-slate-700/50 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 ring-1 ring-inset ring-slate-600">Oczekuje</span>`;
+                    
+                    if (player.team === 'A' || player.team === '1') {
+                        teamBadgeHtml = `<span class="inline-flex items-center rounded-full bg-indigo-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-indigo-400 ring-1 ring-inset ring-indigo-500/30">Drużyna A</span>`;
+                    } else if (player.team === 'B' || player.team === '2') {
+                        teamBadgeHtml = `<span class="inline-flex items-center rounded-full bg-rose-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-400 ring-1 ring-inset ring-rose-500/30">Drużyna B</span>`;
+                    }
+
+                    const isMe = (currentUser && player.player_id === currentUser.player_id) ? `<span class="text-slate-500 font-normal text-xs ml-1">(Ty)</span>` : "";
+                    const isHostIcon = (player.player_id === data.host_id) ? `<span title="Host">👑</span>` : "";
 
                     let kickBtnHtml = "";
                     if (isHost && player.player_id !== currentUser.player_id && stat === 'WAITING') {
-                        kickBtnHtml = `<button class="btn danger" style="padding: 4px 8px; font-size: 12px; margin-left: 10px; width: auto; background: transparent; border: 1px solid var(--accent-red); color: var(--accent-red);" onclick="kickPlayer(${data.game_id}, ${player.player_id})">Wyrzuć</button>`;
+                        kickBtnHtml = `<button onclick="kickPlayer(${data.game_id}, ${player.player_id})" class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/15 hover:text-red-500" title="Wyrzuć">❌</button>`;
                     }
                     
                     listContainer.innerHTML += `
-                        <li class="player-item">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <strong style="color: var(--accent-blue); background: rgba(56, 189, 248, 0.1); padding: 4px 8px; border-radius: 6px;">#${player.player_id}</strong> 
-                                <span style="font-weight: 600; font-size: 16px;">${player.name}</span> ${isMe} ${isHostIcon}
-                                <span style="color: var(--text-muted); font-size: 13px; margin-left: 5px;">[${uniText}]</span>
+                        <li class="bg-slate-900/50 backdrop-blur-md flex items-center gap-3 rounded-2xl border border-slate-700/50 p-3 shadow-sm">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-xs font-bold uppercase text-slate-400 border border-slate-700/50">
+                                ${player.name.substring(0, 2)}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <p class="truncate text-sm font-bold text-slate-200">${player.name}${isMe}</p>
+                                    <span class="text-xs">${isHostIcon}</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 uppercase tracking-widest">${player.university || 'N/A'}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${teamBadgeHtml}
                                 ${kickBtnHtml}
                             </div>
-                            <span style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: bold; color: ${player.team ? 'var(--text-main)' : 'var(--text-muted)'};">${teamText}</span>
                         </li>
                     `;
                 });
@@ -758,4 +821,68 @@ async function openGameDetails(gameId) {
     } catch (err) {
         showToast("Nie udało się pobrać szczegółów.", "error");
     }
+}
+
+// --- NOWE FUNKCJE DO LOBBY ---
+
+async function joinTeam(teamName) {
+    if (!checkAuth() || !currentActiveLobbyId) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/join_team/${teamName}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast(data.message, "success");
+            fetchLobby();
+        } else {
+            handleApiError(res, data);
+        }
+    } catch (err) { showToast("Błąd zmiany drużyny.", "error"); }
+}
+
+async function shuffleTeams() {
+    if (!checkAuth() || !currentActiveLobbyId) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/shuffle`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast("Składy zostały wylosowane!", "success");
+            fetchLobby();
+        } else { handleApiError(res, data); }
+    } catch (err) { showToast("Błąd losowania.", "error"); }
+}
+
+async function toggleLobbyLock() {
+    if (!checkAuth() || !currentActiveLobbyId) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/toggle_lock`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast("Zmieniono status blokady lobby.", "success");
+            fetchLobby();
+        } else { handleApiError(res, data); }
+    } catch (err) { showToast("Błąd blokowania lobby.", "error"); }
+}
+
+async function toggleLobbyMode() {
+    if (!checkAuth() || !currentActiveLobbyId) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}/toggle_mode`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast("Zmieniono tryb gry.", "success");
+            fetchLobby();
+        } else { handleApiError(res, data); }
+    } catch (err) { showToast("Błąd zmiany trybu.", "error"); }
 }

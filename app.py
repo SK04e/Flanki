@@ -184,7 +184,7 @@ def create_game():
     code = random.randint(1000,9999)
 
     try:
-        new_game = Game(winning_team = None, host_id=creator_id, code = code)
+        new_game = Game(winning_team = None, host_id=creator_id, code = code, is_locked=False, game_mode='MANUAL')
         db.session.add(new_game)
         db.session.flush()
 
@@ -247,6 +247,9 @@ def join_match(joining_game_id):
 
     if str(code) != str(game.code):
         return jsonify({"message" : "Błędny kod!"}), 403
+    
+    if game.is_locked:
+        return jsonify({"error" : "Host zablokował dołączanie do gry w ustawieniach"}), 403
 
     else:
         new_match = Match(game_id = joining_game_id, player_id = player_id)
@@ -329,11 +332,53 @@ def start_game(game_id):
         
     if game.status != GameStatus.WAITING:
         return jsonify({"error": "Ta gra już wystartowała lub jest anulowana!"}), 400
-
+    
     matches = Match.query.filter_by(game_id=game_id).all()
     
     if len(matches) < 4:
         return jsonify({"error": "Potrzeba minimum 4 graczy, aby zacząć grę!"}), 400
+    
+    choosing = team_A = team_B = 0
+
+    for match in matches:
+        if match.team == Team.A:
+            team_A+=1
+        elif match.team == Team.B:
+            team_B+=1
+        else:
+            choosing+=1
+
+    if choosing > 0:
+        return jsonify({"error" : "Każdy gracz musi wybrać drużynę aby zacząć grę!"}), 400
+
+    if abs(team_A - team_B) > 1:
+        return jsonify({"error" : "Różnica osób w drużynach może być maksymalnie większa o 1!"}), 403 
+
+    game.status = GameStatus.PENDING
+
+    try:
+        db.session.commit()
+        return jsonify({"message": "Gra wystartowała!"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Błąd bazy danych: {str(e)}"}), 500
+
+@app.route('/games/<int:game_id>/shuffle', methods = ['POST'])
+@jwt_required()
+def shuffle(game_id):
+    player_id = int(get_jwt_identity())
+
+    game = Game.query.get(game_id)
+    if not game:
+        return jsonify({"error": "Gra nie istnieje"}), 404
+        
+    if game.host_id != player_id:
+        return jsonify({"error": "Tylko host może losować drużyny!"}), 403
+        
+    if game.status != GameStatus.WAITING:
+        return jsonify({"error": "Ta gra już wystartowała lub jest anulowana!"}), 400
+
+    matches = Match.query.filter_by(game_id=game_id).all()
 
     random.shuffle(matches)
     
@@ -346,11 +391,9 @@ def start_game(game_id):
     for match in team_b:
         match.team = Team.B
 
-    game.status = GameStatus.PENDING
-    
     try:
         db.session.commit()
-        return jsonify({"message": "Gra wystartowała! Drużyny zostały wylosowane."}), 200
+        return jsonify({"message": "Drużyny zostało rozlosowane!"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Błąd bazy danych: {str(e)}"}), 500
@@ -451,7 +494,6 @@ def get_game_details(game_id):
     players_data = []
     for match in game.matches:
         p_dict = match.player.to_dict()
-        # Zmieniamy na string, żeby JS miał pewność
         p_dict['team'] = match.team.value if match.team else None 
         players_data.append(p_dict)
 
@@ -463,9 +505,103 @@ def get_game_details(game_id):
         "winning_team": game.winning_team.value if game.winning_team else None,
         "date": game.date.strftime("%Y-%m-%d"),
         "host_name": host.name if host else "Nieznany",
-        "players": players_data
+        "players": players_data,
+        "is_locked": game.is_locked,
+        "game_mode": game.game_mode
     }), 200
         
+@app.route('/games/<int:game_id>/join_team/<string:team_name>', methods=['POST'])
+@jwt_required()
+def join_team(team_name, game_id):
+    player_id = int(get_jwt_identity())
+
+    team_name = team_name.upper()
+    if team_name not in ['A', 'B', '1', '2']:
+        return jsonify({"error": "Nieprawidłowa nazwa drużyny!"}), 400
+
+    game = Game.query.get(game_id)
+
+    if not game:
+        return jsonify({"error" : "Nie ma gry o takim ID"}), 404
+
+    if game.status not in [GameStatus.WAITING, 'WAITING', 'waiting', 'GameStatus.WAITING']:
+        return jsonify({"error" : "Gra nie jest w toku"}), 400
+    
+
+    
+    match = Match.query.filter_by(game_id = game_id, player_id = player_id).first()
+
+    if not match:
+        return jsonify({"error" : f"Nie jesteś w lobby o id {game_id}"}), 403
+
+    if game.game_mode == 'SHUFFLE':
+        return jsonify({"error" : "Nie możesz zmienić drużyny w trybie shuffle"}), 400
+
+    try:
+        if team_name in ['A', '1']:
+            match.team = Team.A 
+        else:
+            match.team = Team.B
+            
+        db.session.commit()
+        return jsonify({"message": f"Dołączono do drużyny {team_name}!"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Błąd bazy danych"}), 500
+
+@app.route('/games/<int:game_id>/toggle_lock', methods = ['POST'])
+@jwt_required()
+def toggle_lock(game_id):
+    host_id = int(get_jwt_identity())
+    game = Game.query.filter_by(game_id= game_id).first()
+
+    if not game:
+        return jsonify({"error" : "Nie ma gry o danym ID"}), 404
+    
+    if game.host_id != host_id:
+        return jsonify({"error" : "Tylko host może zmienić ustawienia lobby"}), 403
+
+
+    try:
+        game.is_locked = not game.is_locked
+    
+        db.session.commit()
+        return jsonify({"message": f"Zmieniono blokadę gry na {game.is_locked}!"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Błąd bazy danych"}), 500
+
+@app.route('/games/<int:game_id>/toggle_mode', methods = ['POST'])
+@jwt_required()
+def toggle_mode(game_id):
+    host_id = int(get_jwt_identity())
+    game = Game.query.filter_by(game_id= game_id).first()
+
+    if not game:
+        return jsonify({"error" : "Nie ma gry o danym ID"}), 404
+    
+    if game.host_id != host_id:
+        return jsonify({"error" : "Tylko host może zmienić ustawienia lobby"}), 403
+
+    try:
+        matches = Match.query.filter_by(game_id=game_id).all()
+
+        for match in matches: 
+            match.team = None
+
+        if game.game_mode == 'SHUFFLE':
+            game.game_mode = 'MANUAL'
+        else:
+            game.game_mode = 'SHUFFLE'
+    
+        db.session.commit()
+        return jsonify({"message": f"Zmieniono tryb gry na {game.game_mode}!"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Błąd bazy danych"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
