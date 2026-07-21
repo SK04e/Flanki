@@ -82,6 +82,8 @@ def register():
         return jsonify({"error": "Niepoprawny format adresu email!"}), 400
     if Player.query.filter_by(email=email).first():
         return jsonify({"error" : "Email już istnieje"}), 409
+    if Player.query.filter_by(name=name).first():
+        return jsonify({"error" : "Nick już jest zajęty"}), 409
 
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:
@@ -613,6 +615,25 @@ def toggle_mode(game_id):
         db.session.commit()
         return jsonify({"message": f"Zmieniono tryb gry na {game.game_mode}!"}), 200
         
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Błąd bazy danych"}), 500
+
+@app.route('/system/cleanup', methods = ['GET'])
+def cancel_old_games():
+    limit = datetime.now() - timedelta(minutes=15)
+    games = Game.query.filter(
+            Game.status.in_([GameStatus.WAITING, GameStatus.PENDING]), 
+            Game.date < limit
+        ).all()
+    
+    for game in games:
+        game.status = Game.status.CANCELED
+    
+    try:
+        db.session.commit()
+        return jsonify({"message" : "Usunięto {len(games)} starych lobby"}), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Błąd bazy danych"}), 500
