@@ -1,20 +1,53 @@
 const API_URL = ""; 
 
-let token = localStorage.getItem('jwt_token') || null;
-let currentUser = JSON.parse(localStorage.getItem('current_user')) || null;
-let currentActiveLobbyId = localStorage.getItem('active_lobby_id') || null;
+// Ultra-bezpieczne czyszczenie "null" w LocalStorage
+let token = localStorage.getItem('jwt_token');
+if (!token || token === 'null' || token === 'undefined' || token.trim() === '') {
+    token = null;
+    localStorage.removeItem('jwt_token');
+}
+
+let currentUser = null;
+try {
+    const userStr = localStorage.getItem('current_user');
+    if (userStr && userStr !== 'null' && userStr !== 'undefined' && userStr.trim() !== '') {
+        currentUser = JSON.parse(userStr);
+    } else {
+        localStorage.removeItem('current_user');
+    }
+} catch (e) { 
+    currentUser = null; 
+    localStorage.removeItem('current_user');
+}
+
+let currentActiveLobbyId = localStorage.getItem('active_lobby_id');
+if (!currentActiveLobbyId || currentActiveLobbyId === 'null' || currentActiveLobbyId === 'undefined') {
+    currentActiveLobbyId = null;
+    localStorage.removeItem('active_lobby_id');
+}
+
 let autoKickInterval = null; 
 let lobbyRefreshInterval = null; 
+let liveTimerInterval = null;
+
+const POLISH_CITIES = [
+    "Rzeszów", "Warszawa", "Kraków", "Wrocław", 
+    "Poznań", "Gdańsk", "Łódź", "Katowice", 
+    "Lublin", "Szczecin", "Białystok", "Bydgoszcz", 
+    "Gdynia", "Częstochowa", "Radom", "Toruń"
+];
 
 window.onload = () => {
     updateAuthUI();
     handleInviteLink();
     
+    // Gwarancja braku zjawiska "wpierdala do login page po refreshu"
     if (token && currentUser) {
         if (currentActiveLobbyId) {
             switchView('view-lobby');
-        } 
-        else if (!localStorage.getItem('pending_invite_game')) {
+        } else if (localStorage.getItem('pending_invite_game')) {
+            switchView('view-home');
+        } else {
             switchView('view-profile');
         }
     } else {
@@ -22,7 +55,8 @@ window.onload = () => {
     }
     
     updateFacultyOptions();
-};
+    renderModalCities();
+}
 
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
@@ -42,7 +76,7 @@ function switchView(viewId) {
         'view-login': 'nav-login', 'view-register': 'nav-register', 
         'view-home': 'nav-home', 'view-lobby': 'nav-lobby', 
         'view-profile': 'nav-profile', 'view-leaderboard': 'nav-leaderboard',
-        'view-rules': 'nav-rules'
+        'view-rules': 'nav-rules', 'view-achievements': 'nav-achievements'
     };
     
     if(document.getElementById(btnMap[viewId])) {
@@ -68,7 +102,7 @@ function handleApiError(res, data) {
         showToast("Sesja wygasła. Zaloguj się ponownie.", "error");
         return;
     }
-    const errorText = data.error || data.message || data.msg || `Nieznany błąd (${res.status})`;
+    const errorText = data?.error || data?.message || data?.msg || `Wystąpił błąd (${res.status})`;
     showToast(errorText, "error");
 }
 
@@ -101,6 +135,11 @@ function loadProfileData() {
     document.getElementById('profFac').textContent = currentUser.faculty || "Brak danych";
     document.getElementById('profPlayed').textContent = currentUser.games_played;
     document.getElementById('profWon').textContent = currentUser.games_won;
+    
+    let played = parseInt(currentUser.games_played) || 0;
+    let won = parseInt(currentUser.games_won) || 0;
+    document.getElementById('profLost').textContent = Math.max(0, played - won);
+    
     fetchPlayerHistory();
 }
 
@@ -154,7 +193,7 @@ async function fetchPlayerHistory() {
             tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Nie udało się załadować historii.</td></tr>";
         }
     } catch (err) {
-        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Błąd API podczas pobierania historii.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Błąd API.</td></tr>";
     }
 }
 
@@ -188,7 +227,6 @@ async function login() {
             switchView('view-profile');
             
             await processPendingInvite();
-            
         } else {
             handleApiError(res, data);
         }
@@ -201,6 +239,7 @@ function logout() {
     currentActiveLobbyId = null;
     if(autoKickInterval) clearInterval(autoKickInterval);
     if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval);
+    if(liveTimerInterval) clearInterval(liveTimerInterval);
     localStorage.removeItem('jwt_token');
     localStorage.removeItem('current_user');
     localStorage.removeItem('active_lobby_id');
@@ -268,8 +307,8 @@ async function fetchActiveGames() {
             
             let locationBadge = "";
             if (game.location) {
-                const locIcon = game.is_location_exact ? "📍 GPS" : "✍️ Ręcznie";
-                locationBadge = `<span style="font-size: 11px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left: 5px;">${locIcon}: ${game.location}</span>`;
+                const locIcon = game.is_location_exact ? "📍 GPS ✔️" : "✍️ Ręcznie";
+                locationBadge = `<span style="font-size: 11px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left: 5px; color: ${game.is_location_exact ? 'var(--accent-blue)' : 'var(--text-muted)'};">${locIcon}: ${game.location}</span>`;
             }
 
             listContainer.innerHTML += `
@@ -340,9 +379,108 @@ async function joinGame(gameId) {
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
+function renderModalCities() {
+    const container = document.getElementById('modalCitiesContainer');
+    if (!container) return;
+    
+    container.innerHTML = POLISH_CITIES.map((city, index) => `
+        <label class="city-radio-label">
+            <input type="radio" name="modalCity" value="${city}" ${index === 0 ? 'checked' : ''}>
+            <span>${city}</span>
+        </label>
+    `).join('');
+}
+
+function openLocationModal() { document.getElementById('locationModal').classList.add('active'); }
+function closeLocationModal() { document.getElementById('locationModal').classList.remove('active'); }
+
+function confirmManualCity() {
+    const checkedRadio = document.querySelector('input[name="modalCity"]:checked');
+    if (!checkedRadio) return showToast("Wybierz miasto z listy!", "error");
+
+    const selectedCity = checkedRadio.value;
+    document.getElementById('lobbyLocation').value = selectedCity;
+    document.getElementById('isLocExact').value = 'false';
+    
+    closeLocationModal();
+    showToast(`Wybrano miasto: ${selectedCity}`, "success");
+    sendCreateGameRequest();
+}
+
+function requestGPSFromModal() {
+    if (!navigator.geolocation) {
+        showToast("Twoja przeglądarka nie obsługuje GPS.", "error");
+        return;
+    }
+
+    showToast("Pobieranie pozycji GPS...", "success");
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const data = await res.json();
+                
+                const city = data.address.city || data.address.town || data.address.village || data.address.county || "Lokalizacja GPS";
+                
+                document.getElementById('lobbyLocation').value = city;
+                document.getElementById('isLocExact').value = 'true';
+                
+                closeLocationModal();
+                showToast("Zlokalizowano pomyślnie!", "success");
+                sendCreateGameRequest();
+            } catch (e) {
+                showToast("Nie udało się zamienić GPS na nazwę miasta.", "error");
+            }
+        },
+        (error) => {
+            showToast("Brak uprawnień GPS. Wybierz miasto ręcznie z listy.", "error");
+        },
+        { timeout: 8000 }
+    );
+}
+
 async function createGame() {
     if (!checkAuth()) return;
     
+    const locInput = document.getElementById('lobbyLocation');
+
+    if (locInput.value.trim() !== '') {
+        sendCreateGameRequest();
+        return;
+    }
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                    const data = await res.json();
+                    
+                    const city = data.address.city || data.address.town || data.address.village || data.address.county || "Lokalizacja GPS";
+                    
+                    locInput.value = city;
+                    document.getElementById('isLocExact').value = 'true';
+                    sendCreateGameRequest();
+                } catch (e) {
+                    openLocationModal();
+                }
+            },
+            () => { openLocationModal(); },
+            { timeout: 4000 }
+        );
+    } else {
+        openLocationModal();
+    }
+}
+
+async function sendCreateGameRequest() {
     const locationVal = document.getElementById('lobbyLocation').value;
     const isExactVal = document.getElementById('isLocExact').value === 'true';
 
@@ -375,6 +513,7 @@ function updateLobbyUIState() {
         emptyState.style.display = 'block';
         content.style.display = 'none';
         if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); 
+        if(liveTimerInterval) clearInterval(liveTimerInterval);
     } else {
         emptyState.style.display = 'none';
         content.style.display = 'block';
@@ -385,233 +524,292 @@ function updateLobbyUIState() {
     }
 }
 
+function startLiveTimer(startTimeISO) {
+    if (!startTimeISO) return;
+    const timerEl = document.getElementById('lobbyLiveTimer');
+    if (!timerEl) return;
+
+    timerEl.style.display = 'inline-block';
+    const startTime = new Date(startTimeISO).getTime();
+
+    if (liveTimerInterval) clearInterval(liveTimerInterval);
+
+    const updateTimer = () => {
+        const now = new Date().getTime();
+        const diffMs = now - startTime;
+
+        if (diffMs < 0) {
+            timerEl.textContent = "⏱️ 00:00";
+            return;
+        }
+
+        const totalSec = Math.floor(diffMs / 1000);
+        const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+        const secs = String(totalSec % 60).padStart(2, '0');
+        timerEl.textContent = `⏱️ ${mins}:${secs}`;
+    };
+
+    updateTimer();
+    liveTimerInterval = setInterval(updateTimer, 1000);
+}
+
+// ZABEZPIECZONA FUNKCJA FETCH LOBBY
 async function fetchLobby() {
     if(!currentActiveLobbyId) return updateLobbyUIState();
 
     try {
         const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}`);
-        const data = await res.json();
-
-        if (res.ok) {
-            const stat = String(data.status).toUpperCase();
-            const gameModeSafe = data.game_mode ? String(data.game_mode).toUpperCase() : 'MANUAL';
-            
-            const amIStillInLobby = data.players.some(p => p.player_id === currentUser.player_id);
-            if (!amIStillInLobby && stat === 'WAITING') {
-                showToast("Zostałeś wyrzucony z lobby przez Hosta.", "error");
-                currentActiveLobbyId = null;
-                localStorage.removeItem('active_lobby_id');
-                updateLobbyUIState();
-                switchView('view-home');
-                return;
-            }
-
-            document.getElementById('lobbyIdDisplay').textContent = data.game_id;
-            
-            const codeDisplay = document.getElementById('lobbyCodeDisplay');
-            if (codeDisplay) {
-                codeDisplay.innerHTML = '';
-                const codeStr = String(data.code || "----");
-                for(let char of codeStr) {
-                    codeDisplay.innerHTML += `
-                        <span style="display: flex; align-items: center; justify-content: center; width: 45px; height: 60px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; font-family: monospace; font-size: 32px; font-weight: bold; color: var(--accent-blue);">
-                            ${char}
-                        </span>`;
-                }
-            }
-            
-            const isHost = (currentUser && data.host_id === currentUser.player_id);
-
-            const modeBadge = document.getElementById('lobbyModeBadge');
-            const statusBadge = document.getElementById('lobbyStatusBadge'); 
-            const hostControls = document.getElementById('hostControls');
-            const teamSelectionControls = document.getElementById('teamSelectionControls');
-            const toggleLockBtn = document.getElementById('toggleLockBtn');
-            const toggleModeBtn = document.getElementById('toggleModeBtn');
-            const shuffleBtn = document.getElementById('shuffleBtn');
-
-            const cancelBtn = document.getElementById('cancelGameBtn');
-            const leaveBtn = document.getElementById('leaveGameBtn');
-            const startBtn = document.getElementById('startGameBtn');
-            const finishControls = document.getElementById('activeGameControls');
-            const matchAlert = document.getElementById('matchFinishAlert');
-            const manualTeamButtons = document.getElementById('manualTeamButtons');
-            const shuffleNotice = document.getElementById('shuffleNotice');
-
-            // Badge Statusu
-            if (statusBadge) {
-                statusBadge.textContent = stat;
-                statusBadge.style.cssText = "padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-transform: uppercase; border: 1px solid;";
-                
-                if(stat.includes('WAITING')) {
-                    statusBadge.style.background = "rgba(56, 189, 248, 0.15)";
-                    statusBadge.style.color = "var(--accent-blue)";
-                    statusBadge.style.borderColor = "rgba(56, 189, 248, 0.3)";
-                } else if(stat.includes('PENDING')) {
-                    statusBadge.style.background = "rgba(251, 191, 36, 0.15)";
-                    statusBadge.style.color = "#f59e0b";
-                    statusBadge.style.borderColor = "rgba(251, 191, 36, 0.3)";
-                } else if(stat.includes('FINISHED')) {
-                    statusBadge.style.background = "rgba(255,255,255,0.1)";
-                    statusBadge.style.color = "var(--text-muted)";
-                    statusBadge.style.borderColor = "rgba(255,255,255,0.2)";
-                } else {
-                    statusBadge.style.background = "rgba(244, 63, 94, 0.15)";
-                    statusBadge.style.color = "var(--accent-red)";
-                    statusBadge.style.borderColor = "rgba(244, 63, 94, 0.3)";
-                }
-            }
-
-            if (modeBadge) {
-                modeBadge.textContent = gameModeSafe === 'SHUFFLE' ? "TRYB: LOSOWY" : "TRYB: WYBÓR";
-                modeBadge.style.cssText = "padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 11px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);";
-                if(data.is_locked) {
-                    modeBadge.textContent += " 🔒";
-                    modeBadge.style.color = "var(--accent-red)";
-                } else {
-                    modeBadge.style.color = "var(--text-main)";
-                }
-            }
-
-            if (hostControls) hostControls.style.display = 'none';
-            if (teamSelectionControls) teamSelectionControls.style.display = 'none';
-            if (cancelBtn) cancelBtn.style.display = 'none';
-            if (leaveBtn) leaveBtn.style.display = 'none';
-            if (startBtn) startBtn.style.display = 'none';
-            if (finishControls) finishControls.style.display = 'none';
-            if (matchAlert) matchAlert.style.display = 'none';
-
-            if (stat === 'FINISHED' || stat === 'CANCELED') {
-                if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); 
-                if (!autoKickInterval) {
-                    let sec = 5;
-                    if (matchAlert) {
-                        matchAlert.style.cssText = "padding: 20px; margin-bottom: 20px; border-radius: 12px; text-align: center; border: 1px solid;";
-                        if (stat === 'FINISHED') {
-                            matchAlert.style.background = "rgba(16, 185, 129, 0.15)";
-                            matchAlert.style.color = "#34d399";
-                            matchAlert.style.borderColor = "rgba(16, 185, 129, 0.3)";
-                        } else {
-                            matchAlert.style.background = "rgba(244, 63, 94, 0.15)";
-                            matchAlert.style.color = "var(--accent-red)";
-                            matchAlert.style.borderColor = "rgba(244, 63, 94, 0.3)";
-                        }
-                        
-                        matchAlert.innerHTML = `
-                            <strong style="font-size: 18px;">${stat === 'FINISHED' ? 'MECZ ZAKOŃCZONY' : 'MECZ ANULOWANY'}</strong><br>
-                            <span style="font-size: 13px; opacity: 0.8; margin-top: 5px; display: inline-block;">Powrót do menu za <b id="kickCountdown">${sec}</b>s...</span>
-                        `;
-                        matchAlert.style.display = 'block';
-                    }
-                    autoKickInterval = setInterval(() => {
-                        sec--;
-                        let kCount = document.getElementById('kickCountdown');
-                        if(kCount) kCount.textContent = sec;
-                        if (sec <= 0) {
-                            clearInterval(autoKickInterval);
-                            autoKickInterval = null;
-                            currentActiveLobbyId = null;
-                            localStorage.removeItem('active_lobby_id');
-                            switchView('view-home');
-                            showToast("Zakończono.", "success");
-                        }
-                    }, 1000);
-                }
-            } else {
-                
-                // Widoczność wyboru drużyny
-                if (stat.includes('WAITING')) {
-                    if (teamSelectionControls) teamSelectionControls.style.display = 'block';
-                    
-                    if (gameModeSafe === 'SHUFFLE') {
-                        if (manualTeamButtons) manualTeamButtons.style.display = 'none';
-                        if (shuffleNotice) shuffleNotice.style.display = 'block';
-                    } else {
-                        if (manualTeamButtons) manualTeamButtons.style.display = 'block';
-                        if (shuffleNotice) shuffleNotice.style.display = 'none';
-                    }
-                }
-
-                if (isHost) {
-                    if (stat.includes('WAITING')) {
-                        if (hostControls) hostControls.style.display = 'block';
-                        if (startBtn) startBtn.style.display = 'block';
-                        if (cancelBtn) cancelBtn.style.display = 'block';
-                        
-                        // ZMIANA: Dynamiczne napisy oparte o zaktualizowany backend
-                        if (toggleLockBtn) toggleLockBtn.textContent = data.is_locked ? "🔓 Odblokuj" : "🔒 Zablokuj";
-                        if (toggleModeBtn) toggleModeBtn.textContent = gameModeSafe === 'SHUFFLE' ? "✍️ Tryb: Wybór" : "🎲 Tryb: Losowy";
-                        if (shuffleBtn) shuffleBtn.style.display = gameModeSafe === 'SHUFFLE' ? 'inline-block' : 'none';
-                        
-                    } else if (stat.includes('PENDING')) {
-                        if (finishControls) finishControls.style.display = 'block';
-                    }
-                } else {
-                    if (leaveBtn) leaveBtn.style.display = 'block';
-                }
-            }
-
-            document.getElementById('lobbyCountDisplay').textContent = data.players_count;
-            
-            // Logika rozdzielania graczy
-            const unassignedList = document.getElementById('unassignedContainer');
-            const teamAList = document.getElementById('teamAList');
-            const teamBList = document.getElementById('teamBList');
-            
-            unassignedList.innerHTML = "";
-            teamAList.innerHTML = "";
-            teamBList.innerHTML = "";
-
-            if (data.players.length === 0) {
-                unassignedList.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 10px;'>Brak graczy.</div>";
-            } else {
-                data.players.forEach(player => {
-                    let glowStyle = "background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border);";
-                    let targetContainer = unassignedList;
-
-                    if (player.team === 'A' || player.team === '1') {
-                        glowStyle = "background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent-blue); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);";
-                        targetContainer = teamAList;
-                    } else if (player.team === 'B' || player.team === '2') {
-                        glowStyle = "background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent-red); box-shadow: 0 0 15px rgba(244, 63, 94, 0.2);";
-                        targetContainer = teamBList;
-                    }
-
-                    const isMe = (currentUser && player.player_id === currentUser.player_id) ? `<span style="font-size: 11px; font-weight: normal; color: var(--text-muted); margin-left: 5px;">(Ty)</span>` : "";
-                    const isHostIcon = (player.player_id === data.host_id) ? `<span title="Host" style="margin-left: 5px;">👑</span>` : "";
-                    
-                    const safeName = player.name.replace(/'/g, "\\'");
-                    const safeUni = player.university ? player.university.replace(/'/g, "\\'") : '';
-
-                    let kickBtnHtml = "";
-                    if (isHost && player.player_id !== currentUser.player_id && stat === 'WAITING') {
-                        kickBtnHtml = `<button onclick="kickPlayer(${data.game_id}, ${player.player_id})" style="background: transparent; border: none; font-size: 15px; cursor: pointer; margin-left: auto; opacity: 0.6; transition: 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'" title="Wyrzuć">❌</button>`;
-                    }
-
-                    targetContainer.innerHTML += `
-                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; ${glowStyle}">
-                            <div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; flex-shrink: 0;">
-                                ${player.name.substring(0, 2)}
-                            </div>
-                            <div style="flex: 1; text-align: left; overflow: hidden; display: flex; flex-direction: column;">
-                                <div style="display: flex; align-items: center;">
-                                    <span style="font-weight: bold; font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                        <a class="clickable-profile" onclick="viewPublicProfile(${player.player_id}, '${safeName}', '${safeUni}', ${player.games_played}, ${player.games_won})" title="Zobacz profil gracza">${player.name}</a>
-                                    </span>
-                                    ${isMe}
-                                    ${isHostIcon}
-                                </div>
-                            </div>
-                            ${kickBtnHtml}
-                        </div>
-                    `;
-                });
-            }
-        } else {
+        
+        // ZABEZPIECZENIE: Jeśli baza zwróci np błąd 500
+        if (!res.ok) {
             currentActiveLobbyId = null;
             localStorage.removeItem('active_lobby_id');
             updateLobbyUIState();
-            showToast("To lobby już nie istnieje", "error");
+            showToast("Awaria pobierania gry. Przekierowano do menu.", "error");
+            switchView('view-home');
+            return; 
+        }
+
+        const data = await res.json();
+        const stat = data.status ? String(data.status).toUpperCase() : 'WAITING';
+        const playersList = Array.isArray(data.players) ? data.players : [];
+        
+        const amIStillInLobby = playersList.some(p => p.player_id === currentUser.player_id);
+        if (!amIStillInLobby && stat === 'WAITING') {
+            showToast("Zostałeś wyrzucony z lobby przez Hosta.", "error");
+            currentActiveLobbyId = null;
+            localStorage.removeItem('active_lobby_id');
+            updateLobbyUIState();
+            switchView('view-home');
+            return;
+        }
+
+        document.getElementById('lobbyIdDisplay').textContent = data.game_id;
+        
+        const locContainer = document.getElementById('lobbyLocationBadge');
+        if (locContainer) {
+            if (data.location) {
+                if (data.is_location_exact) {
+                    locContainer.innerHTML = `<span style="background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent-blue); color: var(--accent-blue); padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 11px;">📍 ${data.location} ✔️</span>`;
+                } else {
+                    locContainer.innerHTML = `<span style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); color: var(--text-muted); padding: 4px 10px; border-radius: 20px; font-size: 11px;">✍️ ${data.location}</span>`;
+                }
+            } else {
+                locContainer.innerHTML = '';
+            }
+        }
+
+        const timerEl = document.getElementById('lobbyLiveTimer');
+        if (stat === 'PENDING') {
+            if (data.start_time) {
+                startLiveTimer(data.start_time);
+            } else {
+                if (timerEl) {
+                    timerEl.style.display = 'inline-block';
+                    if (!timerEl.textContent.includes(':')) timerEl.textContent = "⏱️ W toku";
+                }
+            }
+        } else {
+            if (liveTimerInterval) clearInterval(liveTimerInterval);
+            if (timerEl) timerEl.style.display = 'none';
+        }
+        
+        const codeDisplay = document.getElementById('lobbyCodeDisplay');
+        if (codeDisplay) {
+            codeDisplay.innerHTML = '';
+            const codeStr = String(data.code || "----");
+            for(let char of codeStr) {
+                codeDisplay.innerHTML += `
+                    <span style="display: flex; align-items: center; justify-content: center; width: 45px; height: 60px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; font-family: monospace; font-size: 32px; font-weight: bold; color: var(--accent-blue);">
+                        ${char}
+                    </span>`;
+            }
+        }
+        
+        const isHost = (currentUser && data.host_id === currentUser.player_id);
+
+        const modeBadge = document.getElementById('lobbyModeBadge');
+        const statusBadge = document.getElementById('lobbyStatusBadge'); 
+        const hostControls = document.getElementById('hostControls');
+        const teamSelectionControls = document.getElementById('teamSelectionControls');
+        const toggleLockBtn = document.getElementById('toggleLockBtn');
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+
+        const cancelBtn = document.getElementById('cancelGameBtn');
+        const leaveBtn = document.getElementById('leaveGameBtn');
+        const startBtn = document.getElementById('startGameBtn');
+        const finishControls = document.getElementById('activeGameControls');
+        const matchAlert = document.getElementById('matchFinishAlert');
+        const manualTeamButtons = document.getElementById('manualTeamButtons');
+        const shuffleNotice = document.getElementById('shuffleNotice');
+
+        if (statusBadge) {
+            statusBadge.textContent = stat;
+            statusBadge.style.cssText = "padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-transform: uppercase; border: 1px solid;";
+            
+            if(stat.includes('WAITING')) {
+                statusBadge.style.background = "rgba(56, 189, 248, 0.15)";
+                statusBadge.style.color = "var(--accent-blue)";
+                statusBadge.style.borderColor = "rgba(56, 189, 248, 0.3)";
+            } else if(stat.includes('PENDING')) {
+                statusBadge.style.background = "rgba(251, 191, 36, 0.15)";
+                statusBadge.style.color = "#f59e0b";
+                statusBadge.style.borderColor = "rgba(251, 191, 36, 0.3)";
+            } else if(stat.includes('FINISHED')) {
+                statusBadge.style.background = "rgba(255,255,255,0.1)";
+                statusBadge.style.color = "var(--text-muted)";
+                statusBadge.style.borderColor = "rgba(255,255,255,0.2)";
+            } else {
+                statusBadge.style.background = "rgba(244, 63, 94, 0.15)";
+                statusBadge.style.color = "var(--accent-red)";
+                statusBadge.style.borderColor = "rgba(244, 63, 94, 0.3)";
+            }
+        }
+
+        const gameModeSafe = data.game_mode ? String(data.game_mode).toUpperCase() : 'MANUAL';
+
+        if (modeBadge) {
+            modeBadge.textContent = gameModeSafe === 'SHUFFLE' ? "TRYB: LOSOWY" : "TRYB: WYBÓR";
+            modeBadge.style.cssText = "padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 11px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);";
+            if(data.is_locked) {
+                modeBadge.textContent += " 🔒";
+                modeBadge.style.color = "var(--accent-red)";
+            } else {
+                modeBadge.style.color = "var(--text-main)";
+            }
+        }
+
+        if (hostControls) hostControls.style.display = 'none';
+        if (teamSelectionControls) teamSelectionControls.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (leaveBtn) leaveBtn.style.display = 'none';
+        if (startBtn) startBtn.style.display = 'none';
+        if (finishControls) finishControls.style.display = 'none';
+        if (matchAlert) matchAlert.style.display = 'none';
+
+        if (stat === 'FINISHED' || stat === 'CANCELED') {
+            if(lobbyRefreshInterval) clearInterval(lobbyRefreshInterval); 
+            if(liveTimerInterval) clearInterval(liveTimerInterval);
+            if (!autoKickInterval) {
+                let sec = 5;
+                if (matchAlert) {
+                    matchAlert.style.cssText = "padding: 20px; margin-bottom: 20px; border-radius: 12px; text-align: center; border: 1px solid;";
+                    if (stat === 'FINISHED') {
+                        matchAlert.style.background = "rgba(16, 185, 129, 0.15)";
+                        matchAlert.style.color = "#34d399";
+                        matchAlert.style.borderColor = "rgba(16, 185, 129, 0.3)";
+                    } else {
+                        matchAlert.style.background = "rgba(244, 63, 94, 0.15)";
+                        matchAlert.style.color = "var(--accent-red)";
+                        matchAlert.style.borderColor = "rgba(244, 63, 94, 0.3)";
+                    }
+                    
+                    matchAlert.innerHTML = `
+                        <strong style="font-size: 18px;">${stat === 'FINISHED' ? 'MECZ ZAKOŃCZONY' : 'MECZ ANULOWANY'}</strong><br>
+                        <span style="font-size: 13px; opacity: 0.8; margin-top: 5px; display: inline-block;">Powrót do menu za <b id="kickCountdown">${sec}</b>s...</span>
+                    `;
+                    matchAlert.style.display = 'block';
+                }
+                autoKickInterval = setInterval(() => {
+                    sec--;
+                    let kCount = document.getElementById('kickCountdown');
+                    if(kCount) kCount.textContent = sec;
+                    if (sec <= 0) {
+                        clearInterval(autoKickInterval);
+                        autoKickInterval = null;
+                        currentActiveLobbyId = null;
+                        localStorage.removeItem('active_lobby_id');
+                        switchView('view-home');
+                        showToast("Zakończono.", "success");
+                    }
+                }, 1000);
+            }
+        } else {
+            if (stat.includes('WAITING')) {
+                if (teamSelectionControls) teamSelectionControls.style.display = 'block';
+                
+                if (gameModeSafe === 'SHUFFLE') {
+                    if (manualTeamButtons) manualTeamButtons.style.display = 'none';
+                    if (shuffleNotice) shuffleNotice.style.display = 'block';
+                } else {
+                    if (manualTeamButtons) manualTeamButtons.style.display = 'block';
+                    if (shuffleNotice) shuffleNotice.style.display = 'none';
+                }
+            }
+
+            if (isHost) {
+                if (stat.includes('WAITING')) {
+                    if (hostControls) hostControls.style.display = 'block';
+                    if (startBtn) startBtn.style.display = 'block';
+                    if (cancelBtn) cancelBtn.style.display = 'block';
+                    
+                    if (toggleLockBtn) toggleLockBtn.textContent = data.is_locked ? "🔓 Odblokuj" : "🔒 Zablokuj";
+                    if (toggleModeBtn) toggleModeBtn.textContent = gameModeSafe === 'SHUFFLE' ? "✍️ Tryb: Wybór" : "🎲 Tryb: Losowy";
+                    if (shuffleBtn) shuffleBtn.style.display = gameModeSafe === 'SHUFFLE' ? 'inline-block' : 'none';
+                    
+                } else if (stat.includes('PENDING')) {
+                    if (finishControls) finishControls.style.display = 'block';
+                }
+            } else {
+                if (leaveBtn) leaveBtn.style.display = 'block';
+            }
+        }
+
+        document.getElementById('lobbyCountDisplay').textContent = playersList.length;
+        
+        const unassignedList = document.getElementById('unassignedContainer');
+        const teamAList = document.getElementById('teamAList');
+        const teamBList = document.getElementById('teamBList');
+        
+        unassignedList.innerHTML = "";
+        teamAList.innerHTML = "";
+        teamBList.innerHTML = "";
+
+        if (playersList.length === 0) {
+            unassignedList.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 10px;'>Brak graczy.</div>";
+        } else {
+            playersList.forEach(player => {
+                let glowStyle = "background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border);";
+                let targetContainer = unassignedList;
+
+                if (player.team === 'A' || player.team === '1') {
+                    glowStyle = "background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent-blue); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);";
+                    targetContainer = teamAList;
+                } else if (player.team === 'B' || player.team === '2') {
+                    glowStyle = "background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent-red); box-shadow: 0 0 15px rgba(244, 63, 94, 0.2);";
+                    targetContainer = teamBList;
+                }
+
+                const isMe = (currentUser && player.player_id === currentUser.player_id) ? `<span style="font-size: 11px; font-weight: normal; color: var(--text-muted); margin-left: 5px;">(Ty)</span>` : "";
+                const isHostIcon = (player.player_id === data.host_id) ? `<span title="Host" style="margin-left: 5px;">👑</span>` : "";
+                
+                const safeName = player.name.replace(/'/g, "\\'");
+                const safeUni = player.university ? player.university.replace(/'/g, "\\'") : '';
+
+                let kickBtnHtml = "";
+                if (isHost && player.player_id !== currentUser.player_id && stat === 'WAITING') {
+                    kickBtnHtml = `<button onclick="kickPlayer(${data.game_id}, ${player.player_id})" style="background: transparent; border: none; font-size: 15px; cursor: pointer; margin-left: auto; opacity: 0.6; transition: 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'" title="Wyrzuć">❌</button>`;
+                }
+
+                targetContainer.innerHTML += `
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; ${glowStyle}">
+                        <div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; flex-shrink: 0;">
+                            ${player.name.substring(0, 2)}
+                        </div>
+                        <div style="flex: 1; text-align: left; overflow: hidden; display: flex; flex-direction: column;">
+                            <div style="display: flex; align-items: center;">
+                                <span style="font-weight: bold; font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    <a class="clickable-profile" onclick="viewPublicProfile(${player.player_id}, '${safeName}', '${safeUni}', ${player.games_played}, ${player.games_won})" title="Zobacz profil gracza">${player.name}</a>
+                                </span>
+                                ${isMe}
+                                ${isHostIcon}
+                            </div>
+                        </div>
+                        ${kickBtnHtml}
+                    </div>
+                `;
+            });
         }
     } catch (err) { console.error("Błąd odświeżania:", err); }
 }
@@ -712,17 +910,35 @@ async function leaveGame() {
     } catch (err) { showToast("Błąd łączenia z API", "error"); }
 }
 
+function onLeaderboardFilterChange() {
+    const uni = document.getElementById('rankFilterUni').value;
+    const facSelect = document.getElementById('rankFilterFac');
+    
+    facSelect.innerHTML = '<option value="ALL">Wszystkie Wydziały</option>';
+
+    if (uni === "PRZ") {
+        przFaculties.forEach(f => {
+            facSelect.innerHTML += `<option value="${f.value}">${f.label}</option>`;
+        });
+    }
+
+    fetchLeaderboard();
+}
+
 async function fetchLeaderboard() {
     const tbody = document.getElementById('leaderboardBody');
     tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding: 20px; color: var(--text-muted);'>Ładowanie rankingu...</td></tr>";
 
+    const uni = document.getElementById('rankFilterUni') ? document.getElementById('rankFilterUni').value : 'ALL';
+    const fac = document.getElementById('rankFilterFac') ? document.getElementById('rankFilterFac').value : 'ALL';
+
     try {
-        const res = await fetch(`${API_URL}/players`);
+        const res = await fetch(`${API_URL}/players?university=${uni}&faculty=${fac}`);
         const players = await res.json();
         tbody.innerHTML = "";
 
         if (players.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color: var(--text-muted);'>Brak graczy w rankingu.</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color: var(--text-muted);'>Brak graczy.</td></tr>";
             return;
         }
 
@@ -776,9 +992,6 @@ function updateFacultyOptions() {
         facultyContainer.innerHTML = ""; 
     }
 }
-
-
-// ---- SYSTEM ZAPROSZEŃ Z LINKU ---- //
 
 function copyInviteLink() {
     const gameId = document.getElementById('lobbyIdDisplay').textContent;
@@ -945,36 +1158,4 @@ async function toggleLobbyMode() {
             fetchLobby();
         } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd zmiany trybu.", "error"); }
-}
-
-async function fetchGPSLocation() {
-    if (!navigator.geolocation) {
-        return showToast("Twoja przeglądarka nie wspiera GPS.", "error");
-    }
-
-    const locInput = document.getElementById('lobbyLocation');
-    locInput.placeholder = "Pobieranie danych satelitarnych...";
-
-    navigator.geolocation.getCurrentPosition(async (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-
-        try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-            const data = await res.json();
-            
-            const city = data.address.city || data.address.town || data.address.village || data.address.county || "Nieznane miejsce";
-            
-            locInput.value = city;
-            document.getElementById('isLocExact').value = 'true';
-            showToast("Zlokalizowano pomyślnie!", "success");
-        } catch (e) {
-            locInput.placeholder = "Wpisz ręcznie...";
-            showToast("Nie udało się pobrać nazwy miasta.", "error");
-        }
-    }, () => {
-        locInput.placeholder = "Wpisz ręcznie...";
-        showToast("Brak uprawnień do lokalizacji.", "error");
-        document.getElementById('isLocExact').value = 'false';
-    });
 }

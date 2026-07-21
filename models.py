@@ -36,7 +36,6 @@ class Game(db.Model):
     __tablename__ = 'games'
 
     game_id = db.Column(db.Integer, primary_key = True)
-    date = db.Column(db.DateTime, default=datetime.now)
     status = db.Column(db.Enum(GameStatus), default = GameStatus.WAITING, nullable=False)
     winning_team = db.Column(db.Enum(Team))
     host_id = db.Column(db.Integer, db.ForeignKey('players.player_id'), nullable=False)
@@ -44,6 +43,10 @@ class Game(db.Model):
     is_locked = db.Column(db.Boolean, default=False)
     game_mode = db.Column(db.String(20), default='MANUAL')
     matches = db.relationship('Match')
+    date = db.Column(db.DateTime, default=datetime.now)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    location = db.Column(db.String(50), nullable=True)
+    is_location_exact = db.Column(db.Boolean, default=False)
     
 class Player(db.Model):
     __tablename__ = 'players'
@@ -59,13 +62,14 @@ class Player(db.Model):
     is_verified = db.Column(db.Boolean, default=False)
     matches = db.relationship('Match')
     
-
     def to_dict(self):
+        games_lost = max(0, self.games_played - self.games_won)
         return {
             "player_id": self.player_id,
             "name": self.name,
             "games_played": self.games_played,
             "games_won": self.games_won,
+            "games_lost": games_lost,
             "university": self.university.name if self.university else None,
             "faculty": self.faculty.name if self.faculty else None,
             "email" : self.email
@@ -79,4 +83,3 @@ class Match(db.Model):
     team = db.Column(db.Enum(Team), nullable=True)
     game = db.relationship('Game')
     player = db.relationship('Player')
-    

@@ -8,7 +8,7 @@ from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import timedelta
+from datetime import datetime, timedelta
 from itsdangerous import URLSafeTimedSerializer
 from threading import Thread
 import logging
@@ -156,7 +156,6 @@ def get_all_games():
 
     for game in games:
         players_count = Match.query.filter_by(game_id=game.game_id).count()
-
         host = Player.query.get(game.host_id)
         host_name = host.name if host else "Nieznany Host"
 
@@ -164,7 +163,11 @@ def get_all_games():
             "game_id": game.game_id,
             "host_id": game.host_id,
             "host_name": host_name,
-            "players_count": players_count
+            "players_count": players_count,
+            "location": game.location,
+            "is_location_exact": game.is_location_exact,
+            "is_locked": game.is_locked,
+            "game_mode": game.game_mode
         })
     return jsonify(games_data), 200
 
@@ -172,6 +175,10 @@ def get_all_games():
 @jwt_required()
 def create_game():
     creator_id = int(get_jwt_identity())
+    
+    data = request.get_json() or {}
+    location = data.get('location', None)
+    is_location_exact = data.get('is_location_exact', False)
 
     active_match = Match.query.join(Game).filter(
         Match.player_id == creator_id,
@@ -184,11 +191,11 @@ def create_game():
     code = random.randint(1000,9999)
 
     try:
-        new_game = Game(winning_team = None, host_id=creator_id, code = code, is_locked=False, game_mode='MANUAL')
+        new_game = Game(winning_team=None, host_id=creator_id, code=code, is_locked=False, game_mode='MANUAL', location=location, is_location_exact=is_location_exact)
         db.session.add(new_game)
         db.session.flush()
 
-        new_match = Match(game_id = new_game.game_id, player_id = creator_id)
+        new_match = Match(game_id=new_game.game_id, player_id=creator_id)
         db.session.add(new_match)
         db.session.commit()    
 
@@ -201,14 +208,11 @@ def create_game():
 @app.route('/games/<int:game_id>', methods = ['DELETE'])
 @jwt_required()
 def cancel_game(game_id):
-    data = request.get_json()
     requester_id = int(get_jwt_identity())
-
     game = Game.query.get(game_id)
 
     if not game:
         return jsonify({"error": "Gra nie istnieje"}), 404
-
     if game.host_id != requester_id:
         return jsonify({"error": "Brak uprawnień. Tylko host może usunąć grę!"}), 403
 
@@ -216,7 +220,6 @@ def cancel_game(game_id):
         game.status = GameStatus.CANCELED
         db.session.commit()
         return jsonify({"message": "Lobby zostało pomyślnie anulowane"}), 200
-
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Błąd podczas usuwania: {str(e)}"}), 500
@@ -238,11 +241,10 @@ def join_match(joining_game_id):
         return jsonify({'error': 'Nie możesz dołączyć. Już jesteś w grze!', 'game_id': active_match.game_id}), 400
 
     game = Game.query.get(joining_game_id)
-
     if not game:
         return jsonify({"message" : "Lobby o takim ID nie istnieje"}), 404
 
-    if game.status not in [GameStatus.WAITING, 'WAITING', 'waiting', 'GameStatus.WAITING']:
+    if game.status not in [GameStatus.WAITING]:
         return jsonify({"message" : "Ta gra już wystartowała lub została anulowana"}), 403
 
     if str(code) != str(game.code):
@@ -251,17 +253,14 @@ def join_match(joining_game_id):
     if game.is_locked:
         return jsonify({"error" : "Host zablokował dołączanie do gry w ustawieniach"}), 403
 
-    else:
+    try:
         new_match = Match(game_id = joining_game_id, player_id = player_id)
-
-        try:
-            db.session.add(new_match)
-            db.session.commit()
-            return jsonify({"message": "Zostałeś dodany do meczu!"}), 201
-
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({"error": f"Błąd podczas zapisu: {str(e)}"}), 400
+        db.session.add(new_match)
+        db.session.commit()
+        return jsonify({"message": "Zostałeś dodany do meczu!"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Błąd podczas zapisu: {str(e)}"}), 400
 
 
 @app.route('/games/<int:game_id>', methods=['GET'])
@@ -286,15 +285,35 @@ def show_game(game_id):
         "host_id": game.host_id,
         "players_count" : len(players_list),
         "players": players_list,
-        "is_locked": game.is_locked,    # <--- DODAJ TO
-        "game_mode": game.game_mode
+        "is_locked": game.is_locked,
+        "game_mode": game.game_mode,
+        "start_time": game.date.isoformat() if game.date else None,
+        "end_time": game.ended_at.isoformat() if game.ended_at else None,
+        "location": game.location,
+        "is_location_exact": game.is_location_exact
     }), 200
 
 @app.route('/players', methods=['GET'])
 def get_players():
-    players = Player.query.order_by(Player.games_won.desc()).all()
-    fin_list = [player.to_dict() for player in players]
-    return jsonify(fin_list), 200
+    uni = request.args.get('university')
+    fac = request.args.get('faculty')
+
+    query = Player.query
+
+    if uni and uni != "ALL":
+        try:
+            query = query.filter(Player.university == UniversityChoice[uni])
+        except KeyError:
+            pass
+
+    if fac and fac != "ALL":
+        try:
+            query = query.filter(Player.faculty == FacultyChoice[fac])
+        except KeyError:
+            pass
+
+    players = query.order_by(Player.games_won.desc()).all()
+    return jsonify([player.to_dict() for player in players]), 200
 
 @app.route('/games/<int:game_id>/leave', methods=['POST'])
 @jwt_required()
@@ -357,6 +376,7 @@ def start_game(game_id):
         return jsonify({"error" : "Różnica osób w drużynach może być maksymalnie większa o 1!"}), 403 
 
     game.status = GameStatus.PENDING
+    game.date = datetime.now()
 
     try:
         db.session.commit()
@@ -427,6 +447,8 @@ def finish_route(game_id):
         if match.team == game.winning_team:
             player.games_won += 1
 
+    game.ended_at = datetime.now()
+
     try:
         db.session.commit()
         return jsonify({"message": "Gra zakończona! Statystyki zaktualizowane."}), 200
@@ -440,19 +462,16 @@ def get_history(player_id):
     player = Player.query.get_or_404(player_id)
 
     history_data = []
-
     for match in player.matches:
         game = match.game
-        history_data.append(
-            {   
-                "ID gry" : game.game_id,
-                "ID hosta" : game.host_id,
-                "date": game.date.strftime("%Y-%m-%d"),
-                "zwyciezcy" : game.winning_team.value if game.winning_team else None,
-                "Twoja drużyna" : match.team.value if match.team else None,
-                "Status gry" : game.status.value,
-             }
-        )
+        history_data.append({   
+            "ID gry" : game.game_id,
+            "ID hosta" : game.host_id,
+            "date": game.date.strftime("%Y-%m-%d"),
+            "zwyciezcy" : game.winning_team.value if game.winning_team else None,
+            "Twoja drużyna" : match.team.value if match.team else None,
+            "Status gry" : game.status.value,
+        })
 
     return {"Gracz" : player.name, "Historia gry" : history_data}, 200
         
@@ -460,7 +479,6 @@ def get_history(player_id):
 @jwt_required()
 def delete_account():
     pass
-    #usuwanie konta
 
 @app.route('/games/<int:game_id>/kick/<int:player_id>', methods=['DELETE'])
 @jwt_required()
@@ -488,7 +506,6 @@ def kick_player(game_id, player_id):
 
 @app.route('/games/details/<int:game_id>', methods=['POST'])
 def get_game_details(game_id):
-
     game = Game.query.get(game_id)
     if not game:
         return jsonify({"error" : f"Nie znaleziono gry o id {game_id}"}), 404
@@ -517,7 +534,6 @@ def get_game_details(game_id):
 def join_team(team_name, game_id):
     player_id = int(get_jwt_identity())
 
-
     team_name = team_name.upper()
     if team_name not in ['A', 'B', '1', '2']:
         return jsonify({"error": "Nieprawidłowa nazwa drużyny!"}), 400
@@ -530,16 +546,13 @@ def join_team(team_name, game_id):
     if game.game_mode != 'MANUAL':
         return jsonify({"error" : "Nie można zmienić drużyny w trybie shuffle!"}), 400
 
-    if game.status not in [GameStatus.WAITING, 'WAITING', 'waiting', 'GameStatus.WAITING']:
+    if game.status not in [GameStatus.WAITING]:
         return jsonify({"error" : "Gra nie jest w toku"}), 400
     
     match = Match.query.filter_by(game_id = game_id, player_id = player_id).first()
 
     if not match:
         return jsonify({"error" : f"Nie jesteś w lobby o id {game_id}"}), 403
-
-    if game.game_mode == 'SHUFFLE':
-        return jsonify({"error" : "Nie możesz zmienić drużyny w trybie shuffle"}), 400
 
     try:
         if team_name in ['A', '1']:
@@ -566,13 +579,10 @@ def toggle_lock(game_id):
     if game.host_id != host_id:
         return jsonify({"error" : "Tylko host może zmienić ustawienia lobby"}), 403
 
-
     try:
         game.is_locked = not game.is_locked
-    
         db.session.commit()
         return jsonify({"message": f"Zmieniono blokadę gry na {game.is_locked}!"}), 200
-        
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Błąd bazy danych"}), 500
