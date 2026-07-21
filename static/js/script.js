@@ -8,17 +8,21 @@ let lobbyRefreshInterval = null;
 
 window.onload = () => {
     updateAuthUI();
-    
     handleInviteLink();
     
-    if(token) {
-        if(!localStorage.getItem('pending_invite_game') && !currentActiveLobbyId) {
-             switchView('view-profile');
+    if (token && currentUser) {
+        if (currentActiveLobbyId) {
+            switchView('view-lobby');
+        } 
+        else if (!localStorage.getItem('pending_invite_game')) {
+            switchView('view-profile');
         }
-        if(currentActiveLobbyId) updateLobbyUIState();
+    } else {
+        switchView('view-login');
     }
+    
     updateFacultyOptions();
-}
+};
 
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
@@ -58,7 +62,6 @@ function showToast(message, type = "success") {
     setTimeout(() => toast.className = "", 3000);
 }
 
-// ---- UNIWERSALNY SYSTEM ŁAPANIA BŁĘDÓW JWT I FLASKA ---- //
 function handleApiError(res, data) {
     if (res.status === 401 || res.status === 422) {
         logout();
@@ -263,13 +266,20 @@ async function fetchActiveGames() {
             const lockIcon = game.is_locked ? "🔒 " : "🔓 ";
             const modeText = game.game_mode === 'SHUFFLE' ? "Losowy" : "Własny";
             
+            let locationBadge = "";
+            if (game.location) {
+                const locIcon = game.is_location_exact ? "📍 GPS" : "✍️ Ręcznie";
+                locationBadge = `<span style="font-size: 11px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left: 5px;">${locIcon}: ${game.location}</span>`;
+            }
+
             listContainer.innerHTML += `
                 <details class="lobby-accordion" onclick="loadAccordionDetails(${game.game_id}, '${detailsId}')">
                     <summary class="lobby-summary">
-                        <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                             <span style="background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent-blue); color: var(--accent-blue); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">#${game.game_id}</span>
                             <span>${lockIcon}${hostNameStr}</span>
                             <span style="font-size: 11px; background: var(--glass-bg); padding: 2px 6px; border-radius: 4px;">Tryb: ${modeText}</span>
+                            ${locationBadge}
                         </div>
                         <span style="color: var(--text-muted); font-size: 13px;">Gracze: <strong>${game.players_count}</strong></span>
                     </summary>
@@ -332,11 +342,18 @@ async function joinGame(gameId) {
 
 async function createGame() {
     if (!checkAuth()) return;
+    
+    const locationVal = document.getElementById('lobbyLocation').value;
+    const isExactVal = document.getElementById('isLocExact').value === 'true';
+
     try {
         const res = await fetch(`${API_URL}/games`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({})
+            body: JSON.stringify({
+                location: locationVal,
+                is_location_exact: isExactVal
+            })
         });
         const data = await res.json();
         if (res.ok) {
@@ -377,6 +394,7 @@ async function fetchLobby() {
 
         if (res.ok) {
             const stat = String(data.status).toUpperCase();
+            const gameModeSafe = data.game_mode ? String(data.game_mode).toUpperCase() : 'MANUAL';
             
             const amIStillInLobby = data.players.some(p => p.player_id === currentUser.player_id);
             if (!amIStillInLobby && stat === 'WAITING') {
@@ -389,16 +407,16 @@ async function fetchLobby() {
             }
 
             document.getElementById('lobbyIdDisplay').textContent = data.game_id;
-            const hostDisplay = document.getElementById('lobbyHostDisplay');
-            if(hostDisplay) hostDisplay.textContent = data.host_name || `Host #${data.host_id}`;
             
-            // Nowoczesny podział pinu na 4 kafelki
             const codeDisplay = document.getElementById('lobbyCodeDisplay');
             if (codeDisplay) {
                 codeDisplay.innerHTML = '';
                 const codeStr = String(data.code || "----");
                 for(let char of codeStr) {
-                    codeDisplay.innerHTML += `<span class="flex h-16 w-12 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 font-mono text-4xl font-bold text-blue-400">${char}</span>`;
+                    codeDisplay.innerHTML += `
+                        <span style="display: flex; align-items: center; justify-content: center; width: 45px; height: 60px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; font-family: monospace; font-size: 32px; font-weight: bold; color: var(--accent-blue);">
+                            ${char}
+                        </span>`;
                 }
             }
             
@@ -420,23 +438,38 @@ async function fetchLobby() {
             const manualTeamButtons = document.getElementById('manualTeamButtons');
             const shuffleNotice = document.getElementById('shuffleNotice');
 
-            // Aktualizacja Statusu
+            // Badge Statusu
             if (statusBadge) {
                 statusBadge.textContent = stat;
-                statusBadge.className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ring-1 ring-inset";
-                if(stat.includes('WAITING')) statusBadge.classList.add("bg-blue-500/15", "text-blue-400", "ring-blue-500/30");
-                if(stat.includes('PENDING')) statusBadge.classList.add("bg-yellow-500/15", "text-yellow-500", "ring-yellow-500/30");
-                if(stat.includes('FINISHED')) statusBadge.classList.add("bg-slate-700/50", "text-slate-400", "ring-slate-700");
-                if(stat.includes('CANCELED')) statusBadge.classList.add("bg-red-500/15", "text-red-400", "ring-red-500/30");
+                statusBadge.style.cssText = "padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-transform: uppercase; border: 1px solid;";
+                
+                if(stat.includes('WAITING')) {
+                    statusBadge.style.background = "rgba(56, 189, 248, 0.15)";
+                    statusBadge.style.color = "var(--accent-blue)";
+                    statusBadge.style.borderColor = "rgba(56, 189, 248, 0.3)";
+                } else if(stat.includes('PENDING')) {
+                    statusBadge.style.background = "rgba(251, 191, 36, 0.15)";
+                    statusBadge.style.color = "#f59e0b";
+                    statusBadge.style.borderColor = "rgba(251, 191, 36, 0.3)";
+                } else if(stat.includes('FINISHED')) {
+                    statusBadge.style.background = "rgba(255,255,255,0.1)";
+                    statusBadge.style.color = "var(--text-muted)";
+                    statusBadge.style.borderColor = "rgba(255,255,255,0.2)";
+                } else {
+                    statusBadge.style.background = "rgba(244, 63, 94, 0.15)";
+                    statusBadge.style.color = "var(--accent-red)";
+                    statusBadge.style.borderColor = "rgba(244, 63, 94, 0.3)";
+                }
             }
 
             if (modeBadge) {
-                modeBadge.textContent = data.game_mode === 'SHUFFLE' ? "LOSOWY" : "WYBÓR";
+                modeBadge.textContent = gameModeSafe === 'SHUFFLE' ? "TRYB: LOSOWY" : "TRYB: WYBÓR";
+                modeBadge.style.cssText = "padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 11px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);";
                 if(data.is_locked) {
                     modeBadge.textContent += " 🔒";
-                    modeBadge.classList.replace("text-slate-200", "text-red-400");
+                    modeBadge.style.color = "var(--accent-red)";
                 } else {
-                    modeBadge.classList.replace("text-red-400", "text-slate-200");
+                    modeBadge.style.color = "var(--text-main)";
                 }
             }
 
@@ -453,10 +486,20 @@ async function fetchLobby() {
                 if (!autoKickInterval) {
                     let sec = 5;
                     if (matchAlert) {
-                        matchAlert.className = `p-4 mb-4 rounded-xl text-center font-bold border ${stat === 'FINISHED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`;
+                        matchAlert.style.cssText = "padding: 20px; margin-bottom: 20px; border-radius: 12px; text-align: center; border: 1px solid;";
+                        if (stat === 'FINISHED') {
+                            matchAlert.style.background = "rgba(16, 185, 129, 0.15)";
+                            matchAlert.style.color = "#34d399";
+                            matchAlert.style.borderColor = "rgba(16, 185, 129, 0.3)";
+                        } else {
+                            matchAlert.style.background = "rgba(244, 63, 94, 0.15)";
+                            matchAlert.style.color = "var(--accent-red)";
+                            matchAlert.style.borderColor = "rgba(244, 63, 94, 0.3)";
+                        }
+                        
                         matchAlert.innerHTML = `
-                            ${stat === 'FINISHED' ? 'MECZ ZAKOŃCZONY' : 'MECZ ANULOWANY'} <br>
-                            <span class="text-xs font-normal opacity-80 mt-1 block">Powrót do menu za <b id="kickCountdown">${sec}</b>s...</span>
+                            <strong style="font-size: 18px;">${stat === 'FINISHED' ? 'MECZ ZAKOŃCZONY' : 'MECZ ANULOWANY'}</strong><br>
+                            <span style="font-size: 13px; opacity: 0.8; margin-top: 5px; display: inline-block;">Powrót do menu za <b id="kickCountdown">${sec}</b>s...</span>
                         `;
                         matchAlert.style.display = 'block';
                     }
@@ -475,74 +518,92 @@ async function fetchLobby() {
                     }, 1000);
                 }
             } else {
+                
+                // Widoczność wyboru drużyny
+                if (stat.includes('WAITING')) {
+                    if (teamSelectionControls) teamSelectionControls.style.display = 'block';
+                    
+                    if (gameModeSafe === 'SHUFFLE') {
+                        if (manualTeamButtons) manualTeamButtons.style.display = 'none';
+                        if (shuffleNotice) shuffleNotice.style.display = 'block';
+                    } else {
+                        if (manualTeamButtons) manualTeamButtons.style.display = 'block';
+                        if (shuffleNotice) shuffleNotice.style.display = 'none';
+                    }
+                }
+
                 if (isHost) {
                     if (stat.includes('WAITING')) {
                         if (hostControls) hostControls.style.display = 'block';
                         if (startBtn) startBtn.style.display = 'block';
                         if (cancelBtn) cancelBtn.style.display = 'block';
                         
+                        // ZMIANA: Dynamiczne napisy oparte o zaktualizowany backend
                         if (toggleLockBtn) toggleLockBtn.textContent = data.is_locked ? "🔓 Odblokuj" : "🔒 Zablokuj";
-                        if (toggleModeBtn) toggleModeBtn.textContent = data.game_mode === 'SHUFFLE' ? "Tryb: Wybór" : "Tryb: Losowy";
-                        if (shuffleBtn) shuffleBtn.style.display = data.game_mode === 'SHUFFLE' ? 'flex' : 'none';
+                        if (toggleModeBtn) toggleModeBtn.textContent = gameModeSafe === 'SHUFFLE' ? "✍️ Tryb: Wybór" : "🎲 Tryb: Losowy";
+                        if (shuffleBtn) shuffleBtn.style.display = gameModeSafe === 'SHUFFLE' ? 'inline-block' : 'none';
+                        
                     } else if (stat.includes('PENDING')) {
                         if (finishControls) finishControls.style.display = 'block';
                     }
                 } else {
                     if (leaveBtn) leaveBtn.style.display = 'block';
-                    if (stat.includes('WAITING')) {
-                        if (teamSelectionControls) teamSelectionControls.style.display = 'block';
-                        if (data.game_mode === 'SHUFFLE') {
-                            manualTeamButtons.style.display = 'none';
-                            shuffleNotice.style.display = 'block';
-                        } else {
-                            manualTeamButtons.style.display = 'grid';
-                            shuffleNotice.style.display = 'none';
-                        }
-                    }
                 }
             }
 
             document.getElementById('lobbyCountDisplay').textContent = data.players_count;
-            const listContainer = document.getElementById('playersListContainer');
-            listContainer.innerHTML = ""; 
+            
+            // Logika rozdzielania graczy
+            const unassignedList = document.getElementById('unassignedContainer');
+            const teamAList = document.getElementById('teamAList');
+            const teamBList = document.getElementById('teamBList');
+            
+            unassignedList.innerHTML = "";
+            teamAList.innerHTML = "";
+            teamBList.innerHTML = "";
 
             if (data.players.length === 0) {
-                listContainer.innerHTML = "<li class='text-center text-slate-500 py-4 text-sm'>Pusto.</li>";
+                unassignedList.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 10px;'>Brak graczy.</div>";
             } else {
                 data.players.forEach(player => {
-                    let teamBadgeHtml = `<span class="inline-flex items-center rounded-full bg-slate-700/50 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 ring-1 ring-inset ring-slate-600">Oczekuje</span>`;
-                    
+                    let glowStyle = "background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border);";
+                    let targetContainer = unassignedList;
+
                     if (player.team === 'A' || player.team === '1') {
-                        teamBadgeHtml = `<span class="inline-flex items-center rounded-full bg-indigo-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-indigo-400 ring-1 ring-inset ring-indigo-500/30">Drużyna A</span>`;
+                        glowStyle = "background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent-blue); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);";
+                        targetContainer = teamAList;
                     } else if (player.team === 'B' || player.team === '2') {
-                        teamBadgeHtml = `<span class="inline-flex items-center rounded-full bg-rose-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-400 ring-1 ring-inset ring-rose-500/30">Drużyna B</span>`;
+                        glowStyle = "background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent-red); box-shadow: 0 0 15px rgba(244, 63, 94, 0.2);";
+                        targetContainer = teamBList;
                     }
 
-                    const isMe = (currentUser && player.player_id === currentUser.player_id) ? `<span class="text-slate-500 font-normal text-xs ml-1">(Ty)</span>` : "";
-                    const isHostIcon = (player.player_id === data.host_id) ? `<span title="Host">👑</span>` : "";
+                    const isMe = (currentUser && player.player_id === currentUser.player_id) ? `<span style="font-size: 11px; font-weight: normal; color: var(--text-muted); margin-left: 5px;">(Ty)</span>` : "";
+                    const isHostIcon = (player.player_id === data.host_id) ? `<span title="Host" style="margin-left: 5px;">👑</span>` : "";
+                    
+                    const safeName = player.name.replace(/'/g, "\\'");
+                    const safeUni = player.university ? player.university.replace(/'/g, "\\'") : '';
 
                     let kickBtnHtml = "";
                     if (isHost && player.player_id !== currentUser.player_id && stat === 'WAITING') {
-                        kickBtnHtml = `<button onclick="kickPlayer(${data.game_id}, ${player.player_id})" class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/15 hover:text-red-500" title="Wyrzuć">❌</button>`;
+                        kickBtnHtml = `<button onclick="kickPlayer(${data.game_id}, ${player.player_id})" style="background: transparent; border: none; font-size: 15px; cursor: pointer; margin-left: auto; opacity: 0.6; transition: 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'" title="Wyrzuć">❌</button>`;
                     }
-                    
-                    listContainer.innerHTML += `
-                        <li class="bg-slate-900/50 backdrop-blur-md flex items-center gap-3 rounded-2xl border border-slate-700/50 p-3 shadow-sm">
-                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-xs font-bold uppercase text-slate-400 border border-slate-700/50">
+
+                    targetContainer.innerHTML += `
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; ${glowStyle}">
+                            <div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; flex-shrink: 0;">
                                 ${player.name.substring(0, 2)}
                             </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-center gap-1.5 mb-0.5">
-                                    <p class="truncate text-sm font-bold text-slate-200">${player.name}${isMe}</p>
-                                    <span class="text-xs">${isHostIcon}</span>
+                            <div style="flex: 1; text-align: left; overflow: hidden; display: flex; flex-direction: column;">
+                                <div style="display: flex; align-items: center;">
+                                    <span style="font-weight: bold; font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        <a class="clickable-profile" onclick="viewPublicProfile(${player.player_id}, '${safeName}', '${safeUni}', ${player.games_played}, ${player.games_won})" title="Zobacz profil gracza">${player.name}</a>
+                                    </span>
+                                    ${isMe}
+                                    ${isHostIcon}
                                 </div>
-                                <p class="text-[10px] text-slate-500 uppercase tracking-widest">${player.university || 'N/A'}</p>
                             </div>
-                            <div class="flex items-center gap-2">
-                                ${teamBadgeHtml}
-                                ${kickBtnHtml}
-                            </div>
-                        </li>
+                            ${kickBtnHtml}
+                        </div>
                     `;
                 });
             }
@@ -676,7 +737,7 @@ async function fetchLeaderboard() {
             tbody.innerHTML += `
                 <tr style="${rowStyle}">
                     <td style="font-weight: bold; ${rankColor}">${index + 1}</td>
-                    <td><a class="clickable-profile" onclick="viewPublicProfile(${p.player_id}, '${safeName}', '${safeUni}', ${p.games_played}, ${p.games_won})">${p.name}</a></td>
+                    <td><a class="clickable-profile" onclick="viewPublicProfile(${p.player_id}, '${safeName}', '${safeUni}', ${p.games_played}, ${p.games_won})" title="Zobacz profil gracza">${p.name}</a></td>
                     <td style="color: var(--text-muted);">${p.university || '-'}</td>
                     <td style="font-weight: bold;">${p.games_played}</td>
                     <td style="color: var(--accent-green); font-weight: bold;">${p.games_won}</td>
@@ -721,7 +782,9 @@ function updateFacultyOptions() {
 
 function copyInviteLink() {
     const gameId = document.getElementById('lobbyIdDisplay').textContent;
-    const code = document.getElementById('lobbyCodeDisplay').textContent;
+    const codeSpan = document.getElementById('lobbyCodeDisplay').innerText;
+    const code = codeSpan.replace(/\s/g, ''); 
+    
     if(!gameId || !code || gameId === "?" || code === "----") return;
 
     const link = `${window.location.origin}/?game=${gameId}&code=${code}`;
@@ -801,7 +864,6 @@ async function openGameDetails(gameId) {
                 li.style.padding = "5px 0";
                 li.textContent = p.name;
                 
-                // TU BYŁ BŁĄD! Baza wysyła cyfry, a nie litery!
                 const team = p.team ? p.team.toString().toUpperCase() : null;
 
                 if (team === 'A' || team === '1') {
@@ -822,8 +884,6 @@ async function openGameDetails(gameId) {
         showToast("Nie udało się pobrać szczegółów.", "error");
     }
 }
-
-// --- NOWE FUNKCJE DO LOBBY ---
 
 async function joinTeam(teamName) {
     if (!checkAuth() || !currentActiveLobbyId) return;
@@ -885,4 +945,36 @@ async function toggleLobbyMode() {
             fetchLobby();
         } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd zmiany trybu.", "error"); }
+}
+
+async function fetchGPSLocation() {
+    if (!navigator.geolocation) {
+        return showToast("Twoja przeglądarka nie wspiera GPS.", "error");
+    }
+
+    const locInput = document.getElementById('lobbyLocation');
+    locInput.placeholder = "Pobieranie danych satelitarnych...";
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await res.json();
+            
+            const city = data.address.city || data.address.town || data.address.village || data.address.county || "Nieznane miejsce";
+            
+            locInput.value = city;
+            document.getElementById('isLocExact').value = 'true';
+            showToast("Zlokalizowano pomyślnie!", "success");
+        } catch (e) {
+            locInput.placeholder = "Wpisz ręcznie...";
+            showToast("Nie udało się pobrać nazwy miasta.", "error");
+        }
+    }, () => {
+        locInput.placeholder = "Wpisz ręcznie...";
+        showToast("Brak uprawnień do lokalizacji.", "error");
+        document.getElementById('isLocExact').value = 'false';
+    });
 }

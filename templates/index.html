@@ -6,6 +6,36 @@
     <title>Flanki Hub</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <style>
+        :root {
+            --bg-base: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-hover: rgba(255, 255, 255, 0.08);
+            
+            --text-main: #f8fafc; 
+            --text-muted: #94a3b8; 
+            
+            --accent-blue: #38bdf8;
+            --accent-blue-hover: #7dd3fc; 
+            --accent-green: #4ade80; 
+            --accent-red: #fb7185;
+            
+            --border-radius: 16px; 
+            --transition: 0.3s ease;
+        }
+        .clickable-profile {
+            color: var(--accent-blue);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s;
+        }
+        .clickable-profile:hover {
+            text-decoration: underline;
+            color: #fff;
+        }
+    </style>
 </head>
 <body>
 
@@ -54,6 +84,26 @@
                 <h2>📖 Oficjalne Zasady Gry we Flanki</h2>
                 <h3 style="color: var(--accent-blue); margin-top: 15px; margin-bottom: 5px;">🎯 Cel gry</h3>
                 <p style="line-height: 1.5; color: var(--text-muted);">Wygrywa drużyna, w której <strong>wszyscy gracze jako pierwsi skończą swoje piwo</strong>!</p>
+                 <h3 style="color: var(--accent-blue); margin-top: 20px; margin-bottom: 5px;">👥 Drużyny i Sprzęt</h3>
+                <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                    <li>Minimum <strong>2 graczy</strong> na drużynę. Nie wolno zmieniać graczy w trakcie trwania rozgrywki!</li>
+                    <li>Gra się <strong>gumową kaczką</strong> 🦆 (ewentualnie dobrze ściśniętą, pustą puszką).</li>
+                </ul>
+
+                <h3 style="color: var(--accent-blue); margin-top: 20px; margin-bottom: 5px;">🏁 Rozpoczęcie (Komis)</h3>
+                <p style="line-height: 1.5; color: var(--text-muted);">Przed startem następuje tzw. <strong>komis</strong>, czyli jednoczesne otworzenie piw przez wszystkich graczy. Wolno wtedy jedynie spić "uciekającą piankę" – nic więcej!</p>
+
+                <h3 style="color: var(--accent-blue); margin-top: 20px; margin-bottom: 5px;">⚔️ Przebieg rozgrywki (Co, kiedy i jak)</h3>
+                <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                    <li>Rzuca się <strong>po kolei</strong> (naprzemiennie drużynami).</li>
+                    <li>Gdy trafisz i zbijesz środkową puszkę, Twoja drużyna natychmiast zaczyna pić.</li>
+                    <li>Zadaniem drużyny broniącej jest jak najszybsze odstawienie środkowej puszki do pionu oraz powrót za swoją linię startową.</li>
+                    <li><strong>Złota zasada:</strong> Środkowa puszka musi STAĆ, w momencie gdy gracz wracający przekracza linię z powrotem. Wtedy drużyna rzucająca przerywa picie.</li>
+                    <li>Biegać po puszkę na środek i wykonywać rzuty karne może <strong>dowolna osoba</strong> z drużyny broniącej.</li>
+                </ul>
+
+                <h3 style="color: var(--accent-red); margin-top: 20px; margin-bottom: 5px;">🚫 Przewinienia i Kary</h3>
+                <p style="line-height: 1.5; margin-bottom: 10px; color: var(--text-muted);">Zabrania się kategorycznie <strong>zamieniania się piwem</strong> z kimkolwiek! Każdy pije swoje. Kary to <strong>rzuty karne</strong>.</p>
             </div>
         </section>
 
@@ -168,6 +218,9 @@
                 <h2>Podgląd Zawodnika: <span id="pubProfName" style="color: var(--accent-blue);">Ładowanie...</span></h2>
                 <div class="profile-stat"><span>ID Gracza:</span> <span id="pubProfId">-</span></div>
                 <div class="profile-stat"><span>Uczelnia:</span> <span id="pubProfUni">-</span></div>
+                <div class="profile-stat"><span>Rozegrane:</span> <span id="pubProfPlayed">-</span></div>
+                <div class="profile-stat"><span>Wygrane:</span> <span id="pubProfWon" style="color: var(--accent-green);">-</span></div>
+                <div class="profile-stat"><span>Win Ratio:</span> <span id="pubProfRatio" style="color: var(--accent-blue);">-</span></div>
             </div>
         </section>
 
@@ -198,6 +251,17 @@
                 <div class="card" style="text-align: center;">
                     <h2 style="border: none;">Zostań Hostem</h2>
                     <p style="color: var(--text-muted); margin-bottom: 20px;">Stwórz nowe lobby i udostępnij kod znajomym, aby zaczęli dołączać.</p>
+                    
+                    <!-- MODUŁ LOKALIZACJI -->
+                    <div class="form-group" style="text-align: left; margin-bottom: 20px;">
+                        <label>Lokalizacja Lobby</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="lobbyLocation" placeholder="Wpisz np. Miasteczko PRz lub kliknij GPS" style="flex: 1;" oninput="document.getElementById('isLocExact').value = 'false'">
+                            <button class="btn" style="width: auto; padding: 0 15px; background: var(--accent-blue); font-size: 20px;" onclick="fetchGPSLocation()" title="Użyj mojej lokalizacji GPS">📍</button>
+                            <input type="hidden" id="isLocExact" value="false">
+                        </div>
+                    </div>
+
                     <button class="btn" style="font-size: 16px; padding: 16px;" onclick="createGame()">➕ Stwórz Nową Grę</button>
                 </div>
                 
@@ -221,59 +285,78 @@
                 <button class="btn" onclick="switchView('view-home')">Wróć do przeglądarki gier</button>
             </div>
 
-            <div id="lobbyContent" class="card" style="display: none;">
+            <div id="lobbyContent" class="card" style="display: none; max-width: 900px;">
                 <div id="matchFinishAlert" class="match-alert win"></div>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                     <h2 style="margin-bottom: 0; border: none;">Lobby #<span id="lobbyIdDisplay">?</span></h2>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <span id="lobbyModeBadge" style="background: var(--glass-bg); padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 13px;">TRYB: ?</span>
-                        <span id="lobbyStatusBadge" style="background: var(--glass-bg); padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 13px;">BRAK DANYCH</span>
+                        <span id="lobbyModeBadge"></span>
+                        <span id="lobbyStatusBadge"></span>
                     </div>
                 </div>
                 
-                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 25px;">
-                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 5px;">KOD DOŁĄCZENIA</p>
-                    <strong style="color: var(--accent-green); font-size: 32px; letter-spacing: 2px;" id="lobbyCodeDisplay">----</strong>
-                    <br><button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px; margin-top: 10px; background: rgba(255,255,255,0.1);" onclick="copyInviteLink()">🔗 Skopiuj link</button>
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 25px;">
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Kod Dołączenia</p>
+                    <div id="lobbyCodeDisplay" style="display: flex; justify-content: center; gap: 10px;">
+                        <!-- Kafelki pinu wygenerowane przez JS -->
+                    </div>
+                    <!-- NIEBIESKI PRZYCISK LINKU -->
+                    <button class="btn" style="width: auto; padding: 8px 20px; font-weight: bold; font-size: 13px; margin-top: 20px; background: var(--accent-blue); color: #0f172a; border: none;" onclick="copyInviteLink()">🔗 Skopiuj link</button>
                 </div>
 
                 <!-- PANEL HOSTA (USTAWIENIA LOBBY) -->
-                <div id="hostControls" style="display: none; margin-bottom: 20px; padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 12px; border: 1px solid var(--glass-border);">
-                    <h3 style="margin-top: 0; font-size: 14px; color: var(--accent-blue); margin-bottom: 10px;">⚙️ Ustawienia Hosta</h3>
+                <div id="hostControls" style="display: none; margin-bottom: 25px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 12px; border: 1px solid var(--glass-border);">
+                    <h3 style="margin-top: 0; font-size: 13px; color: var(--accent-blue); margin-bottom: 10px; text-align: center;">⚙️ Ustawienia Hosta</h3>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
-                        <button id="toggleLockBtn" class="btn" style="width: auto; flex: 1; min-width: 140px; padding: 8px 12px; font-size: 13px;" onclick="toggleLobbyLock()">Zablokuj</button>
-                        <button id="toggleModeBtn" class="btn" style="width: auto; flex: 1; min-width: 140px; padding: 8px 12px; font-size: 13px;" onclick="toggleLobbyMode()">Zmień Tryb</button>
-                        <button id="shuffleBtn" class="btn" style="width: auto; flex: 1; min-width: 140px; padding: 8px 12px; font-size: 13px; background: var(--accent-blue);" onclick="shuffleTeams()">🎲 Wylosuj składy</button>
+                        <button id="toggleLockBtn" class="btn" style="flex: unset; width: auto; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-main);" onclick="toggleLobbyLock()">🔒 Zablokuj</button>
+                        <button id="toggleModeBtn" class="btn" style="flex: unset; width: auto; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-main);" onclick="toggleLobbyMode()">✍️ Tryb: Wybór</button>
+                        <button id="shuffleBtn" class="btn" style="flex: unset; width: auto; padding: 6px 12px; font-size: 12px; background: var(--accent-blue); border: none; color: #0f172a;" onclick="shuffleTeams()">🎲 Losuj</button>
                     </div>
                 </div>
 
-                <!-- PANEL WYBORU DRUŻYNY (DLA GRACZY) -->
+                <!-- PANEL WYBORU DRUŻYNY (WSPÓLNY DLA HOSTA I GRACZY) -->
                 <div id="teamSelectionControls" style="display: none; margin-bottom: 20px; text-align: center;">
-                    <p style="margin-bottom: 10px; color: var(--text-main); font-size: 14px;">Wybierz swoją drużynę:</p>
-                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn" style="width: auto; padding: 8px 15px; background: transparent; border: 1px solid var(--accent-blue); color: var(--accent-blue);" onclick="joinTeam('A')">Dołącz do A</button>
-                        <button class="btn" style="width: auto; padding: 8px 15px; background: transparent; border: 1px solid var(--accent-red); color: var(--accent-red);" onclick="joinTeam('B')">Dołącz do B</button>
+                    <div id="shuffleNotice" style="display: none; color: var(--accent-blue); font-size: 14px; margin-bottom: 15px;">Host ustawił tryb losowy. Oczekuj na przydział przy starcie gry.</div>
+                    <div id="manualTeamButtons">
+                        <p style="margin-bottom: 15px; color: var(--text-main); font-size: 14px; font-weight: bold;">Wybierz swoją drużynę:</p>
+                        <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn" style="width: auto; padding: 10px 20px; background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent-blue); color: var(--accent-blue);" onclick="joinTeam('A')">Dołącz do A</button>
+                            <button class="btn" style="width: auto; padding: 10px 20px; background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent-red); color: var(--accent-red);" onclick="joinTeam('B')">Dołącz do B</button>
+                        </div>
                     </div>
                 </div>
 
-                <div id="activeGameControls" style="display: none; text-align: center;">
-                    <h3 style="color: var(--accent-blue); font-size: 16px;">🏆 Zgłoś Wynik Gry</h3>
+                <div id="activeGameControls" style="display: none; text-align: center; margin-bottom: 25px;">
+                    <h3 style="color: var(--accent-blue); font-size: 16px; margin-bottom: 15px;">🏆 Zgłoś Wynik Gry</h3>
                     <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn" style="width: auto; padding: 10px 15px; background: var(--accent-green);" onclick="finishGame('1')">Wygrała Drużyna A</button>
-                        <button class="btn" style="width: auto; padding: 10px 15px; background: var(--accent-green);" onclick="finishGame('2')">Wygrała Drużyna B</button>
+                        <button class="btn" style="width: auto; padding: 12px 20px; background: var(--accent-green); border: none;" onclick="finishGame('1')">Wygrała Drużyna A</button>
+                        <button class="btn" style="width: auto; padding: 12px 20px; background: var(--accent-green); border: none;" onclick="finishGame('2')">Wygrała Drużyna B</button>
                     </div>
                 </div>
 
-                <h3 style="margin-top: 10px;">Lista Graczy (<span id="lobbyCountDisplay">0</span>)</h3>
-                <ul class="players-list" id="playersListContainer"></ul>
+                <h3 style="margin-top: 10px; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">Lista Graczy (<span id="lobbyCountDisplay">0</span>)</h3>
+                
+                <div id="playersListContainer">
+                    <div id="unassignedContainer" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 15px;">
+                            <h3 style="color: var(--accent-blue); margin-top: 0; margin-bottom: 15px; text-align: center; font-size: 15px;">🔵 Drużyna A</h3>
+                            <div id="teamAList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                        </div>
+                        <div style="flex: 1; min-width: 200px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 12px; padding: 15px;">
+                            <h3 style="color: var(--accent-red); margin-top: 0; margin-bottom: 15px; text-align: center; font-size: 15px;">🔴 Drużyna B</h3>
+                            <div id="teamBList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- DOLNE PRZYCISKI -->
                 <div style="display: flex; gap: 10px; margin-top: 30px; justify-content: center; flex-wrap: wrap;">
-                    <button class="btn" style="width: auto; padding: 8px 20px; font-size: 14px; background: rgba(255,255,255,0.1);" onclick="fetchLobby()">🔄 Odśwież</button>
-                    <button id="startGameBtn" class="btn" style="width: auto; padding: 8px 20px; font-size: 14px; background: var(--accent-green); display: none;" onclick="startGame()">🚀 Start</button>
-                    <button id="leaveGameBtn" class="btn danger" style="width: auto; padding: 8px 20px; font-size: 14px; display: none;" onclick="leaveGame()">Wyjdź</button>
-                    <button id="cancelGameBtn" class="btn danger" style="width: auto; padding: 8px 20px; font-size: 14px; display: none;" onclick="cancelGame()">Zniszcz Lobby</button>
+                    <button class="btn" style="width: auto; padding: 10px 20px; font-weight: bold; font-size: 14px; background: var(--accent-blue); color: #0f172a; border: none;" onclick="fetchLobby()">🔄 Odśwież</button>
+                    <button id="startGameBtn" class="btn" style="width: auto; padding: 10px 25px; font-size: 14px; background: var(--accent-green); border: none; display: none;" onclick="startGame()">🚀 Start Gry</button>
+                    <button id="leaveGameBtn" class="btn danger" style="width: auto; padding: 10px 20px; font-size: 14px; display: none;" onclick="leaveGame()">Wyjdź z Lobby</button>
+                    <button id="cancelGameBtn" class="btn danger" style="width: auto; padding: 10px 20px; font-size: 14px; display: none;" onclick="cancelGame()">Zniszcz Lobby</button>
                 </div>
             </div>
         </section>

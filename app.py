@@ -285,7 +285,9 @@ def show_game(game_id):
         "status": game.status.name if game.status else None,
         "host_id": game.host_id,
         "players_count" : len(players_list),
-        "players": players_list
+        "players": players_list,
+        "is_locked": game.is_locked,    # <--- DODAJ TO
+        "game_mode": game.game_mode
     }), 200
 
 @app.route('/players', methods=['GET'])
@@ -348,7 +350,7 @@ def start_game(game_id):
         else:
             choosing+=1
 
-    if choosing > 0:
+    if choosing > 0 and game.game_mode == 'MANUAL':
         return jsonify({"error" : "Każdy gracz musi wybrać drużynę aby zacząć grę!"}), 400
 
     if abs(team_A - team_B) > 1:
@@ -515,6 +517,7 @@ def get_game_details(game_id):
 def join_team(team_name, game_id):
     player_id = int(get_jwt_identity())
 
+
     team_name = team_name.upper()
     if team_name not in ['A', 'B', '1', '2']:
         return jsonify({"error": "Nieprawidłowa nazwa drużyny!"}), 400
@@ -523,11 +526,12 @@ def join_team(team_name, game_id):
 
     if not game:
         return jsonify({"error" : "Nie ma gry o takim ID"}), 404
+    
+    if game.game_mode != 'MANUAL':
+        return jsonify({"error" : "Nie można zmienić drużyny w trybie shuffle!"}), 400
 
     if game.status not in [GameStatus.WAITING, 'WAITING', 'waiting', 'GameStatus.WAITING']:
         return jsonify({"error" : "Gra nie jest w toku"}), 400
-    
-
     
     match = Match.query.filter_by(game_id = game_id, player_id = player_id).first()
 
