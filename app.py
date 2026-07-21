@@ -628,11 +628,11 @@ def cancel_old_games():
         ).all()
     
     for game in games:
-        game.status = Game.status.CANCELED
+        game.status = GameStatus.CANCELED
     
     try:
         db.session.commit()
-        return jsonify({"message" : "Usunięto {len(games)} starych lobby"}), 200
+        return jsonify({"message" : f"Usunięto {len(games)} starych lobby"}), 200
 
     except Exception as e:
         db.session.rollback()
