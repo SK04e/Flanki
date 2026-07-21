@@ -102,6 +102,12 @@ function handleApiError(res, data) {
         showToast("Sesja wygasła. Zaloguj się ponownie.", "error");
         return;
     }
+    // Obsługa błędu unikalności nicku, jeśli baza wyrzuci 500 (lub zmienisz na 409 w apce)
+    if (data?.error && data.error.includes("name") && data.error.includes("UNIQUE")) {
+        showToast("Ten Nick (Imię) jest już zajęty! Wybierz inny.", "error");
+        return;
+    }
+    
     const errorText = data?.error || data?.message || data?.msg || `Wystąpił błąd (${res.status})`;
     showToast(errorText, "error");
 }
@@ -252,13 +258,19 @@ async function registerPlayer() {
     const name = document.getElementById('regName').value;
     const email = document.getElementById('regEmail').value;
     const password = document.getElementById('regPassword').value;
+    const passwordConfirm = document.getElementById('regPasswordConfirm').value; // Nowe pole powtórz hasło
     const uniElement = document.querySelector('input[name="regUni"]:checked');
     const uni = uniElement ? uniElement.value : null;
     const facElement = document.querySelector('input[name="regFac"]:checked');
     const faculty = facElement ? facElement.value : null;
 
-    if (!name || !email || !password) return showToast("Wypełnij wymagane pola (*)", "error");
-    if (password.length < 6) return showToast("Hasło jest za krótkie!", "error");
+    if (!name || !email || !password || !passwordConfirm) return showToast("Wypełnij wszystkie wymagane pola (*)", "error");
+    if (password.length < 6) return showToast("Hasło jest za krótkie! (Min. 6 znaków)", "error");
+    
+    // Sprawdzenie czy hasła są takie same
+    if (password !== passwordConfirm) {
+        return showToast("Podane hasła się od siebie różnią!", "error");
+    }
 
     try {
         const res = await fetch(`${API_URL}/auth/register`, {
@@ -560,12 +572,11 @@ async function fetchLobby() {
     try {
         const res = await fetch(`${API_URL}/games/${currentActiveLobbyId}`);
         
-        // ZABEZPIECZENIE: Jeśli baza zwróci np błąd 500
         if (!res.ok) {
             currentActiveLobbyId = null;
             localStorage.removeItem('active_lobby_id');
             updateLobbyUIState();
-            showToast("Awaria pobierania gry. Przekierowano do menu.", "error");
+            showToast("Gra nie istnieje lub uległa awarii.", "error");
             switchView('view-home');
             return; 
         }

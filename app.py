@@ -16,6 +16,32 @@ import requests
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def get_game_dict(game):
+    players_list = []
+    for match in game.matches:
+        p_dict = match.player.to_dict()
+        p_dict["team"] = match.team.name if match.team else None
+        players_list.append(p_dict)
+        
+    host = Player.query.get(game.host_id)
+    
+    return {
+        "game_id": game.game_id,
+        "code": game.code,
+        "status": game.status.name if game.status else None,
+        "host_id": game.host_id,
+        "host_name": host.name if host else "Nieznany Host",
+        "players_count": len(players_list),
+        "players": players_list,
+        "is_locked": game.is_locked,
+        "game_mode": game.game_mode,
+        "location": game.location,
+        "is_location_exact": game.is_location_exact,
+        "start_time": game.date.isoformat() if game.date else None,
+        "end_time": game.ended_at.isoformat() if game.ended_at else None,
+        "winning_team": game.winning_team.name if game.winning_team else None
+    }
+
 def send_async_email(email_to, name, confirm_url):
     api_key = os.getenv('BREVO_API_KEY')
     url = "https://api.brevo.com/v3/smtp/email"
@@ -271,29 +297,7 @@ def show_game(game_id):
     if not game:
         return jsonify({"message" : "Mecz o takim ID nie istnieje"}), 404
 
-    players_list = []
-    match_info = Match.query.filter_by(game_id=game_id).all()
-
-    for match in match_info:
-        player_obj = Player.query.get(match.player_id)
-        player_dict = player_obj.to_dict()
-        player_dict["team"] = match.team.name if match.team else None
-        players_list.append(player_dict)
-
-    return jsonify({
-        "game_id": game.game_id,
-        "code": game.code,
-        "status": game.status.name if game.status else None,
-        "host_id": game.host_id,
-        "players_count" : len(players_list),
-        "players": players_list,
-        "is_locked": game.is_locked,
-        "game_mode": game.game_mode,
-        "start_time": game.date.isoformat() if game.date else None,
-        "end_time": game.ended_at.isoformat() if game.ended_at else None,
-        "location": game.location,
-        "is_location_exact": game.is_location_exact
-    }), 200
+    return jsonify(get_game_dict(game)), 200
 
 @app.route('/players', methods=['GET'])
 def get_players():
@@ -520,16 +524,7 @@ def get_game_details(game_id):
 
     host = Player.query.get(game.host_id)
     
-    return jsonify({
-        "game_id": game.game_id,
-        "status": game.status.value,
-        "winning_team": game.winning_team.value if game.winning_team else None,
-        "date": game.date.strftime("%Y-%m-%d"),
-        "host_name": host.name if host else "Nieznany",
-        "players": players_data,
-        "is_locked": game.is_locked,
-        "game_mode": game.game_mode
-    }), 200
+    return jsonify(get_game_dict(game)), 200
         
 @app.route('/games/<int:game_id>/join_team/<string:team_name>', methods=['POST'])
 @jwt_required()

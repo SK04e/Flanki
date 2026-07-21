@@ -24,6 +24,19 @@
             --border-radius: 16px; 
             --transition: 0.3s ease;
         }
+        
+        /* FIX MOBILNY: Żeby paski przeglądarki i telefony nie obcinały dolnych przycisków */
+        body {
+            min-height: 100vh;
+            /* Używamy wartości z min-height, zamiast sztywnego height */
+            min-height: -webkit-fill-available;
+            overflow-x: hidden;
+        }
+        
+        .main-content {
+            padding-bottom: 80px; /* Zapas miejsca na dole dla telefonów */
+        }
+
         .clickable-profile {
             color: var(--accent-blue);
             cursor: pointer;
@@ -223,6 +236,10 @@
                     <button class="password-toggle" onclick="togglePassword('loginPassword')">👁️</button>
                 </div>
                 <button class="btn" onclick="login()" style="margin-top: 20px;">Zaloguj do gry</button>
+                
+                <p style="text-align: center; margin-top: 20px; font-size: 14px; color: var(--text-muted);">
+                    Nie masz konta? <a href="#" onclick="switchView('view-register'); return false;" style="color: var(--accent-blue); font-weight: bold; text-decoration: none;">Zarejestruj się</a>
+                </p>
             </div>
         </section>
 
@@ -231,7 +248,7 @@
             <div class="card" style="max-width: 500px;">
                 <h2>Zarejestruj nowego gracza</h2>
                 <div class="form-group">
-                    <label>Imię / Nick *</label>
+                    <label>Imię / Nick * (Musi być unikalny)</label>
                     <input type="text" id="regName" placeholder="Np. Kamil">
                 </div>
                 <div class="form-group">
@@ -242,6 +259,12 @@
                     <label>Hasło * (Min. 6 znaków)</label>
                     <input type="password" id="regPassword" placeholder="Minimum 6 znaków">
                     <button class="password-toggle" onclick="togglePassword('regPassword')">👁️</button>
+                </div>
+                <!-- DODANE POLE POTWIERDZENIA HASŁA -->
+                <div class="form-group">
+                    <label>Powtórz Hasło *</label>
+                    <input type="password" id="regPasswordConfirm" placeholder="Powtórz hasło">
+                    <button class="password-toggle" onclick="togglePassword('regPasswordConfirm')">👁️</button>
                 </div>
                 <div class="form-group">
                     <label>Uczelnia</label>
@@ -335,10 +358,10 @@
                     
                     <!-- MODUŁ LOKALIZACJI -->
                     <div class="form-group" style="text-align: left; margin-bottom: 20px;">
-                        <label>Wybrana Lokalizacja Lobby</label>
+                        <label>Lokalizacja Lobby</label>
                         <div style="display: flex; gap: 10px;">
-                            <input type="text" id="lobbyLocation" placeholder="Kliknij obok GPS lub wybierz z listy..." style="flex: 1;" readonly>
-                            <button class="btn" style="width: auto; padding: 0 15px; background: var(--accent-blue); font-size: 20px; color: #0f172a;" onclick="openLocationModal()" title="Zmień/Pobierz lokalizację">📍</button>
+                            <input type="text" id="lobbyLocation" placeholder="Wpisz np. Miasteczko PRz lub kliknij GPS" style="flex: 1;" oninput="document.getElementById('isLocExact').value = 'false'">
+                            <button class="btn" style="width: auto; padding: 0 15px; background: var(--accent-blue); font-size: 20px;" onclick="fetchGPSLocation()" title="Użyj mojej lokalizacji GPS">📍</button>
                             <input type="hidden" id="isLocExact" value="false">
                         </div>
                     </div>
@@ -387,10 +410,11 @@
                     <div id="lobbyCodeDisplay" style="display: flex; justify-content: center; gap: 10px;">
                         <!-- Kafelki pinu wygenerowane przez JS -->
                     </div>
+                    <!-- NIEBIESKI PRZYCISK LINKU -->
                     <button class="btn" style="width: auto; padding: 8px 20px; font-weight: bold; font-size: 13px; margin-top: 20px; background: var(--accent-blue); color: #0f172a; border: none;" onclick="copyInviteLink()">🔗 Skopiuj link</button>
                 </div>
 
-                <!-- PANEL HOSTA -->
+                <!-- PANEL HOSTA (USTAWIENIA LOBBY) -->
                 <div id="hostControls" style="display: none; margin-bottom: 25px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 12px; border: 1px solid var(--glass-border);">
                     <h3 style="margin-top: 0; font-size: 13px; color: var(--accent-blue); margin-bottom: 10px; text-align: center;">⚙️ Ustawienia Hosta</h3>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
@@ -400,7 +424,7 @@
                     </div>
                 </div>
 
-                <!-- PANEL WYBORU DRUŻYNY -->
+                <!-- PANEL WYBORU DRUŻYNY (WSPÓLNY DLA HOSTA I GRACZY) -->
                 <div id="teamSelectionControls" style="display: none; margin-bottom: 20px; text-align: center;">
                     <div id="shuffleNotice" style="display: none; color: var(--accent-blue); font-size: 14px; margin-bottom: 15px;">Host ustawił tryb losowy. Oczekuj na przydział przy starcie gry.</div>
                     <div id="manualTeamButtons">
