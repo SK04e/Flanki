@@ -13,19 +13,26 @@ export function MatchSummaryOverlay({ winner, onDone }: MatchSummaryOverlayProps
   const [count, setCount] = React.useState(5)
   const isBlue = winner === "A"
 
+  // Keep the latest onDone without re-triggering the countdown effect.
+  const onDoneRef = React.useRef(onDone)
+  React.useEffect(() => {
+    onDoneRef.current = onDone
+  }, [onDone])
+
+  // Run the countdown exactly once on mount.
   React.useEffect(() => {
     const interval = setInterval(() => {
       setCount((c) => {
         if (c <= 1) {
           clearInterval(interval)
-          onDone()
+          onDoneRef.current()
           return 0
         }
         return c - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [onDone])
+  }, [])
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-background/95 px-6 text-center backdrop-blur-md">
