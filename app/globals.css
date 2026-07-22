@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 1rem;
+
+  /* Deep navy / slate base */
+  --background: oklch(0.16 0.03 264);
+  --foreground: oklch(0.97 0.01 264);
+
+  /* Glass card surfaces */
+  --card: oklch(0.22 0.035 264);
+  --card-foreground: oklch(0.97 0.01 264);
+  --popover: oklch(0.2 0.035 264);
+  --popover-foreground: oklch(0.97 0.01 264);
+
+  /* Neon blue = Team A / primary */
+  --primary: oklch(0.68 0.17 245);
+  --primary-foreground: oklch(0.15 0.03 264);
+
+  --secondary: oklch(0.28 0.04 264);
+  --secondary-foreground: oklch(0.97 0.01 264);
+
+  --muted: oklch(0.28 0.03 264);
+  --muted-foreground: oklch(0.68 0.02 264);
+
+  /* Neon blue accent */
+  --accent: oklch(0.68 0.17 245);
+  --accent-foreground: oklch(0.15 0.03 264);
+
+  /* Crimson = Team B / destructive */
+  --destructive: oklch(0.62 0.22 22);
+  --destructive-foreground: oklch(0.98 0.01 22);
+
+  /* Emerald = success / start */
+  --success: oklch(0.72 0.18 155);
+  --success-foreground: oklch(0.15 0.03 264);
+
+  /* Gold = rankings / warnings */
+  --gold: oklch(0.82 0.15 85);
+  --gold-foreground: oklch(0.18 0.03 264);
+
+  --border: oklch(0.32 0.03 264);
+  --input: oklch(0.3 0.03 264);
+  --ring: oklch(0.68 0.17 245);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: color-mix(in oklch, var(--card) 70%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  }
+  .glow-blue {
+    box-shadow: 0 0 24px -4px color-mix(in oklch, var(--primary) 60%, transparent);
+  }
+  .glow-red {
+    box-shadow: 0 0 24px -4px color-mix(in oklch, var(--destructive) 60%, transparent);
+  }
+  .glow-green {
+    box-shadow: 0 0 24px -4px color-mix(in oklch, var(--success) 60%, transparent);
+  }
+  .glow-gold {
+    box-shadow: 0 0 22px -6px color-mix(in oklch, var(--gold) 70%, transparent);
+  }
+  .text-glow-blue {
+    text-shadow: 0 0 18px color-mix(in oklch, var(--primary) 70%, transparent);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop-in {
+  animation: pop-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slide-up {
+  0% { transform: translateY(16px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
