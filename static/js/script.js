@@ -41,6 +41,17 @@ window.onload = () => {
     updateAuthUI();
     handleInviteLink();
     
+    // Obsługa linku do resetowania hasła z e-maila
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetToken = urlParams.get('reset_token');
+    
+    if (resetToken) {
+        document.getElementById('resetTokenHidden').value = resetToken;
+        switchView('view-new-password');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+    }
+    
     // Gwarancja braku zjawiska "wpierdala do login page po refreshu"
     if (token && currentUser) {
         if (currentActiveLobbyId) {
@@ -1169,4 +1180,47 @@ async function toggleLobbyMode() {
             fetchLobby();
         } else { handleApiError(res, data); }
     } catch (err) { showToast("Błąd zmiany trybu.", "error"); }
+}
+
+async function requestPasswordReset() {
+    const email = document.getElementById('resetEmailInput').value;
+    if (!email) return showToast("Podaj adres e-mail!", "error");
+
+    try {
+        const res = await fetch(`${API_URL}/auth/reset-password-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast("Wysłano link. Sprawdź skrzynkę e-mail.", "success");
+            switchView('view-login');
+        } else {
+            showToast(data.error || "Błąd", "error");
+        }
+    } catch (err) { showToast("Błąd serwera", "error"); }
+}
+
+async function submitNewPassword() {
+    const token = document.getElementById('resetTokenHidden').value;
+    const password = document.getElementById('newPasswordInput').value;
+    
+    if (password.length < 6) return showToast("Hasło musi mieć min. 6 znaków", "error");
+
+    try {
+        const res = await fetch(`${API_URL}/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, password })
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+            showToast("Hasło zmienione pomyślnie!", "success");
+            switchView('view-login');
+        } else {
+            showToast(data.error || "Błąd zmiany hasła", "error");
+        }
+    } catch (err) { showToast("Błąd serwera", "error"); }
 }

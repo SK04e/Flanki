@@ -68,6 +68,21 @@ def send_async_email(email_to, name, confirm_url):
     except Exception as e:
         logging.error(f"KRYTYCZNY BŁĄD REQUESTS W TLE: {str(e)}")
 
+def send_reset_email(email_to, name, reset_url):
+    api_key = os.getenv('BREVO_API_KEY')
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {"accept": "application/json", "api-key": api_key, "content-type": "application/json"}
+    payload = {
+        "sender": {"name": "Flanki Hub", "email": "flankihub@gmail.com"},
+        "to": [{"email": email_to}],
+        "subject": "Resetowanie hasła - Flanki Hub",
+        "htmlContent": f"<p>Witaj {name}!</p><p>Aby ustawić nowe hasło, kliknij w poniższy link:</p><p><a href='{reset_url}'>Zresetuj hasło</a></p><p>Link wygasa po godzinie.</p>"
+    }
+    try:
+        requests.post(url, json=payload, headers=headers)
+    except Exception as e:
+        logging.error(f"BŁĄD BREVO (RESET): {str(e)}")
+
 app = Flask(__name__)
 
 CORS(app)
@@ -281,6 +296,10 @@ def join_match(joining_game_id):
     if game.is_locked:
         return jsonify({"error" : "Host zablokował dołączanie do gry w ustawieniach"}), 403
 
+    if len(game.matches) >= 30:
+        return jsonify({"error" : "Maksymalna ilość graczy w lobby to 30"}), 403
+
+
     try:
         new_match = Match(game_id = joining_game_id, player_id = player_id)
         db.session.add(new_match)
@@ -318,7 +337,7 @@ def get_players():
         except KeyError:
             pass
 
-    players = query.order_by(Player.games_won.desc()).all()
+    players = query.order_by(Player.games_won.desc()).limit(50).all()
     return jsonify([player.to_dict() for player in players]), 200
 
 @app.route('/games/<int:game_id>/leave', methods=['POST'])
@@ -632,6 +651,58 @@ def cancel_old_games():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Błąd bazy danych"}), 500
+
+@app.route('/stats', methods=['GET'])
+def get_global_stats():
+    total_players = Player.query.count()
+    total_games = Game.query.filter(Game.status==GameStatus.FINISHED).count()
+
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    games_today = Game.query.filter(Game.date >= today).count()
+    
+    return jsonify({
+        "total_players": total_players,
+        "total_games_played": total_games,
+        "games_today": games_today
+    }), 200
+
+@app.route('/auth/reset-password-request', methods=['POST'])
+def reset_password_request():
+    email = request.get_json().get('email')
+    if not email:
+        return jsonify({"error": "Podaj adres e-mail"}), 400
+        
+    player = Player.query.filter_by(email=email).first()
+    if player:
+        token = serializer.dumps(email, salt='password-reset')
+        base_url = os.getenv('APP_URL', 'http://127.0.0.1:5000')
+        reset_url = f"{base_url}/?reset_token={token}"
+        Thread(target=send_reset_email, args=[email, player.name, reset_url]).start()
+        
+    return jsonify({"message": "Jeśli e-mail istnieje w bazie, wysłano link."}), 200
+
+@app.route('/auth/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('password')
+    
+    if not token or not new_password or len(new_password) < 6:
+        return jsonify({"error": "Błędne dane lub za krótkie hasło"}), 400
+        
+    try:
+        email = serializer.loads(token, salt='password-reset', max_age=3600)
+    except Exception:
+        return jsonify({"error": "Link wygasł lub jest nieprawidłowy."}), 400
+        
+    player = Player.query.filter_by(email=email).first()
+    if not player:
+        return jsonify({"error": "Nie znaleziono konta."}), 404
+        
+    player.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+    db.session.commit()
+    return jsonify({"message": "Hasło zostało pomyślnie zmienione! Możesz się zalogować."}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
