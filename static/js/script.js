@@ -96,7 +96,7 @@ function switchView(viewId) {
     
     if(viewId === 'view-leaderboard') fetchLeaderboard();
     if(viewId === 'view-profile') loadProfileData();
-    if(viewId === 'view-home') fetchActiveGames(); 
+    if(viewId === 'view-home') { fetchActiveGames(); fetchGlobalStats(); }
     if(viewId === 'view-lobby') updateLobbyUIState();
 }
 
@@ -145,6 +145,8 @@ function updateAuthUI() {
 
 function loadProfileData() {
     if(!currentUser) return;
+    document.getElementById('profUni').textContent = currentUser.university ? `${currentUser.university}` : "Brak uczelni";
+    document.getElementById('profFac').textContent = currentUser.faculty ? `${currentUser.faculty}` : "Brak wydziału";
     document.getElementById('profId').textContent = currentUser.player_id;
     document.getElementById('profName').textContent = currentUser.name;
     document.getElementById('profEmail').textContent = currentUser.email;
@@ -174,7 +176,7 @@ function viewPublicProfile(id, name, uni, played, won) {
 async function fetchPlayerHistory() {
     if(!currentUser) return;
     const tbody = document.getElementById('profileHistoryBody');
-    tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--text-muted);'>Ładowanie historii...</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color: var(--text-muted);'>Ładowanie historii...</td></tr>";
 
     try {
         const res = await fetch(`${API_URL}/players/${currentUser.player_id}/history`);
@@ -184,33 +186,37 @@ async function fetchPlayerHistory() {
             tbody.innerHTML = "";
 
             if (history.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--text-muted);'>Brak rozegranych gier.</td></tr>";
+                tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color: var(--text-muted);'>Brak rozegranych gier.</td></tr>";
                 return;
             }
 
             history.forEach(game => {
-                let teamStr = game["Twoja drużyna"] ? `Drużyna ${game["Twoja drużyna"]}` : '-';
-                let winnerStr = game["zwyciezcy"] ? `Drużyna ${game["zwyciezcy"]}` : '-';
-                let statusColor = "var(--text-muted)";
-                if(game["Status gry"] === "finished") statusColor = "var(--accent-green)";
-                if(game["Status gry"] === "canceled") statusColor = "var(--accent-red)";
-                let winColor = (game["zwyciezcy"] && game["zwyciezcy"] === game["Twoja drużyna"]) ? "color: var(--accent-green); font-weight: bold;" : "color: var(--text-main);";
+                // Mapowanie drużyn na styl Faceit (Team A = Niebieska/Blue, Team B = Czerwona/Red)
+                let myTeamRaw = game["Twoja drużyna"];
+                let myTeamText = myTeamRaw === '1' || myTeamRaw === 'A' ? '<span style="color: var(--accent-blue); font-weight: bold;">BLUE TEAM</span>' : '<span style="color: var(--accent-red); font-weight: bold;">RED TEAM</span>';
+                
+                let winnerRaw = game["zwyciezcy"];
+                let winnerText = winnerRaw === '1' || winnerRaw === 'A' ? 'BLUE WIN' : (winnerRaw === '2' || winnerRaw === 'B' ? 'RED WIN' : 'REMIS');
+                
+                let isWin = (winnerRaw && winnerRaw === myTeamRaw);
+                let verdictBadge = isWin 
+                    ? '<span style="background: rgba(74,222,128,0.15); color: var(--accent-green); padding: 3px 8px; border-radius: 6px; font-weight: bold;">WIN</span>' 
+                    : '<span style="background: rgba(244,63,94,0.15); color: var(--accent-red); padding: 3px 8px; border-radius: 6px; font-weight: bold;">LOSS</span>';
 
                 tbody.innerHTML += `
                     <tr onclick="openGameDetails(${game["ID gry"]})" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
                         <td style="font-weight: bold; color: var(--accent-blue);">#${game["ID gry"]}</td>
                         <td style="color: var(--text-muted); font-size: 13px;">${game["date"]}</td>
-                        <td>${teamStr}</td>
-                        <td style="${winColor}">${winnerStr}</td>
-                        <td style="color: ${statusColor}; text-transform: uppercase; font-size: 12px; font-weight: bold; letter-spacing: 1px;">${game["Status gry"]}</td>
+                        <td>${myTeamText}</td>
+                        <td>${verdictBadge}</td>
+                        <td style="color: var(--text-muted); font-size: 13px;">${game["Status gry"].toUpperCase()}</td>
+                        <td style="color: var(--accent-blue); font-size: 13px;">Szczegóły ➔</td>
                     </tr>
                 `;
             });
-        } else {
-            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Nie udało się załadować historii.</td></tr>";
         }
     } catch (err) {
-        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color: var(--accent-red);'>Błąd API.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color: var(--accent-red);'>Błąd API.</td></tr>";
     }
 }
 
@@ -970,13 +976,16 @@ async function fetchLeaderboard() {
             const rankColor = index === 0 ? "color: #fbbf24; font-size: 18px;" : (index === 1 ? "color: #94a3b8; font-size: 16px;" : (index === 2 ? "color: #b45309; font-size: 16px;" : ""));
             const winRatio = p.games_played > 0 ? Math.round((p.games_won / p.games_played) * 100) + '%' : '0%';
             const safeName = p.name.replace(/'/g, "\\'");
-            const safeUni = p.university ? p.university.replace(/'/g, "\\'") : '';
+            
+            const uniDisplay = p.university || 'Inna';
+            const facDisplay = p.faculty ? p.faculty : '-';
 
+            // ZMIENIONE: używamy uniDisplay w dwóch miejscach
             tbody.innerHTML += `
                 <tr style="${rowStyle}">
                     <td style="font-weight: bold; ${rankColor}">${index + 1}</td>
-                    <td><a class="clickable-profile" onclick="viewPublicProfile(${p.player_id}, '${safeName}', '${safeUni}', ${p.games_played}, ${p.games_won})" title="Zobacz profil gracza">${p.name}</a></td>
-                    <td style="color: var(--text-muted);">${p.university || '-'}</td>
+                    <td><a class="clickable-profile" onclick="viewPublicProfile(${p.player_id}, '${safeName}', '${uniDisplay}', ${p.games_played}, ${p.games_won})" title="Zobacz profil gracza">${p.name}</a></td>
+                    <td style="color: var(--text-muted);">${uniDisplay}</td>
                     <td style="font-weight: bold;">${p.games_played}</td>
                     <td style="color: var(--accent-green); font-weight: bold;">${p.games_won}</td>
                     <td style="color: var(--accent-blue); font-weight: bold;">${winRatio}</td>
@@ -1223,4 +1232,23 @@ async function submitNewPassword() {
             showToast(data.error || "Błąd zmiany hasła", "error");
         }
     } catch (err) { showToast("Błąd serwera", "error"); }
+}
+
+async function fetchGlobalStats() {
+    try {
+        const res = await fetch(`${API_URL}/stats`);
+        if (res.ok) {
+            const data = await res.json();
+            const statsBar = document.getElementById('globalStatsBar');
+            if (statsBar) {
+                statsBar.innerHTML = `
+                    <div style="display: flex; gap: 15px; justify-content: space-around; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); padding: 12px; border-radius: 12px; margin-bottom: 20px; text-align: center; flex-wrap: wrap;">
+                        <div><span style="color: var(--text-muted); font-size: 12px; display: block;">👥 Zarejestrowani</span><strong style="color: var(--accent-blue); font-size: 16px;">${data.total_players}</strong></div>
+                        <div><span style="color: var(--text-muted); font-size: 12px; display: block;">🏆 Rozegrane mecze</span><strong style="color: var(--accent-green); font-size: 16px;">${data.total_games_played}</strong></div>
+                        <div><span style="color: var(--text-muted); font-size: 12px; display: block;">🔥 Mecze dzisiaj</span><strong style="color: #fbbf24; font-size: 16px;">${data.games_today}</strong></div>
+                    </div>
+                `;
+            }
+        }
+    } catch (e) { console.error("Błąd statystyk", e); }
 }
