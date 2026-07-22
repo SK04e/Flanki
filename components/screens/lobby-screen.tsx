@@ -155,7 +155,7 @@ export function LobbyScreen(props: LobbyScreenProps) {
       {isActive ? (
         <ActiveControls isHost={isHost} onReportWin={props.onReportWin} onLeave={props.onLeave} />
       ) : isHost ? (
-        <HostControls game={game} canStart={canStart} balanced={balanced} {...props} />
+        <HostControls {...props} canStart={canStart} balanced={balanced} />
       ) : (
         <PlayerControls game={game} onJoinTeam={props.onJoinTeam} onLeave={props.onLeave} />
       )}
