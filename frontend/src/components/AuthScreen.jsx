@@ -1,265 +1,236 @@
 import React, { useState } from 'react';
-import api from '../api';
-import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, UserPlus, Mail, Lock, KeyRound, ArrowLeft, CheckCircle2 } from 'lucide-react';
-
-const UNIVERSITIES = {
-  PRz: ['WEII', 'WC', 'WZ', 'WMiFS', 'WBMiL', 'WBIŚiA', 'WMT'],
-  URz: ['Ogólny'],
-  Other: ['Inny']
-};
+import { LogIn, UserPlus, Mail, Lock, User, GraduationCap, Building2, Beer, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import api from '../api';
 
 export default function AuthScreen() {
   const { login } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
-  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
-  
-  const queryParams = new URLSearchParams(window.location.search);
-  const resetTokenFromUrl = queryParams.get('reset_token');
-  const [newPassword, setNewPassword] = useState('');
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
-  const [university, setUniversity] = useState('PRz');
-  const [faculty, setFaculty] = useState('WEII');
-  
+  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    university: '',
+    faculty: ''
+  });
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError(''); 
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setError('');
+    setSuccessMessage('');
 
     try {
-      if (resetTokenFromUrl) {
-        if (newPassword.length < 6) {
-          alert("Hasło musi mieć minimum 6 znaków!");
-          setLoading(false);
-          return;
-        }
-        const res = await api.post('/auth/reset-password', { token: resetTokenFromUrl, password: newPassword });
-        alert(res.data.message || "Hasło zaktualizowane!");
-        window.location.href = '/';
-      } else if (forgotPasswordMode) {
-        const res = await api.post('/auth/reset-password-request', { email });
-        setMessage(res.data.message || "Wysłano link resetujący na e-mail.");
-      } else if (isRegister) {
-        if (password !== confirmPassword) {
-          alert("Podane hasła nie są identyczne! Sprawdź poprawność.");
-          setLoading(false);
-          return;
-        }
-        const res = await api.post('/auth/register', { name, email, password, university, faculty });
-        setMessage(res.data.message || "Zarejestrowano pomyślnie! Sprawdź pocztę.");
+      if (isLogin) {
+        // LOGOWANIE
+        const res = await api.post('/auth/login', {
+          email: formData.email,
+          password: formData.password
+        });
+        login(res.data.access_token, res.data.player);
       } else {
-        const result = await login(email, password);
-        if (!result.success) {
-          alert(result.error);
-        }
+        // REJESTRACJA
+        const payload = {
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          university: formData.university || null,
+          // Wysyłamy wydział tylko jeśli wybrano PRZ
+          faculty: formData.university === 'PRZ' ? formData.faculty : null
+        };
+        
+        const res = await api.post('/auth/register', payload);
+        setSuccessMessage(res.data.message || 'Zarejestrowano pomyślnie! Sprawdź skrzynkę e-mail.');
+        setIsLogin(true); 
+        setFormData({ name: '', email: '', password: '', university: '', faculty: '' });
       }
     } catch (err) {
-      alert(err.response?.data?.error || "Wystąpił błąd");
+      setError(err.response?.data?.error || 'Wystąpił błąd połączenia z serwerem.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 selection:bg-yellow-400 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       
-      <div className="absolute w-72 h-72 bg-yellow-400/10 rounded-full blur-3xl pointer-events-none" />
+      {/* TŁO - BLUR EFEKT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-yellow-400/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-0 w-[250px] h-[250px] bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-2xl backdrop-blur-xl relative z-10">
-        
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-black tracking-wider text-white">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-sm relative z-10"
+      >
+        {/* LOGO */}
+        <div className="text-center mb-8">
+          <motion.div 
+            initial={{ scale: 0 }} 
+            animate={{ scale: 1 }} 
+            transition={{ type: "spring", bounce: 0.5 }}
+            className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(250,204,21,0.3)] mb-4"
+          >
+            <Beer className="w-8 h-8 text-slate-950 fill-slate-950/20" />
+          </motion.div>
+          <h1 className="text-3xl font-black tracking-wider text-white">
             FLANKI<span className="text-yellow-400">HUB</span>
           </h1>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-            {resetTokenFromUrl ? 'Ustaw nowe hasło' : forgotPasswordMode ? 'Odzyskiwanie hasła' : isRegister ? 'Utwórz konto gracza' : 'E-sportowa platforma do flanki'}
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
+            Uczelniana Liga
           </p>
         </div>
 
-        {message && (
-          <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-400 text-center font-bold flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" /> {message}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        {/* KARTA FORMULARZA */}
+        <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-2xl">
           
-          {resetTokenFromUrl ? (
-            <div>
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Nowe hasło (min. 6 znaków)</label>
-              <div className="relative mt-1">
-                <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
-                <input
-                  type="password"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                />
-              </div>
-            </div>
-          ) : forgotPasswordMode ? (
-            <div>
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Twój adres e-mail</label>
-              <div className="relative mt-1">
-                <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                />
-              </div>
-            </div>
-          ) : (
-            <>
-              {isRegister && (
-                <>
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Nazwa / Nick</label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Twój Nick"
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Uczelnia</label>
-                      <select
-                        value={university}
-                        onChange={(e) => {
-                          setUniversity(e.target.value);
-                          setFaculty(UNIVERSITIES[e.target.value]?.[0] || 'Ogólny');
-                        }}
-                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                      >
-                        <option value="PRz">PRz</option>
-                        <option value="URz">URz</option>
-                        <option value="Other">Inna</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Wydział</label>
-                      <select
-                        value={faculty}
-                        onChange={(e) => setFaculty(e.target.value)}
-                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                      >
-                        {UNIVERSITIES[university]?.map(f => (
-                          <option key={f} value={f}>{f}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">E-mail</label>
-                <div className="relative mt-1">
-                  <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Hasło</label>
-                <div className="relative mt-1">
-                  <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                  />
-                </div>
-              </div>
-
-              {isRegister && (
-                <div>
-                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Potwierdź hasło</label>
-                  <div className="relative mt-1">
-                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-black py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(250,204,21,0.2)] mt-2 disabled:opacity-50"
-          >
-            {loading ? 'Przetwarzanie...' : resetTokenFromUrl ? 'Zmień hasło' : forgotPasswordMode ? 'Wyślij link resetujący' : isRegister ? 'Zarejestruj się' : 'Zaloguj się'}
-          </button>
-        </form>
-
-        {/* "Zapomniałeś hasła?" wyśrodkowane pod przyciskiem logowania, trochę niżej */}
-        {!isRegister && !resetTokenFromUrl && !forgotPasswordMode && (
-          <div className="mt-3.5 text-center">
+          {/* PRZEŁĄCZNIK LOGOWANIE / REJESTRACJA */}
+          <div className="flex bg-slate-950/50 p-1 rounded-xl mb-6">
             <button
-              type="button"
-              onClick={() => setForgotPasswordMode(true)}
-              className="text-xs text-slate-400 hover:text-yellow-400 font-bold transition-colors"
+              onClick={() => { setIsLogin(true); setError(''); setSuccessMessage(''); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${isLogin ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              Zapomniałeś hasła?
+              <LogIn className="w-4 h-4" /> Zaloguj
+            </button>
+            <button
+              onClick={() => { setIsLogin(false); setError(''); setSuccessMessage(''); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${!isLogin ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <UserPlus className="w-4 h-4" /> Dołącz
             </button>
           </div>
-        )}
 
-        <div className="mt-4 text-center">
-          {resetTokenFromUrl || forgotPasswordMode ? (
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold p-3 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <p>{error}</p>
+              </motion.div>
+            )}
+            {successMessage && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold p-3 rounded-xl flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <p>{successMessage}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* POLA REJESTRACJI */}
+            {!isLogin && (
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Twój Nick (widoczny w grze)"
+                    required={!isLogin}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-500 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-colors"
+                  />
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <GraduationCap className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <select 
+                    name="university" 
+                    value={formData.university}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-white focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-colors appearance-none"
+                  >
+                    <option value="" className="text-slate-500">Wybierz uczelnię...</option>
+                    <option value="PRZ">Politechnika Rzeszowska (PRz)</option>
+                    <option value="URZ">Uniwersytet Rzeszowski (URz)</option>
+                    <option value="Other">Inna uczelnia / Brak</option>
+                  </select>
+                </div>
+
+                {/* WYDZIAŁ - tylko dla PRZ */}
+                {formData.university === 'PRZ' && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Building2 className="w-4 h-4 text-slate-500" />
+                    </div>
+                    <select 
+                      name="faculty" 
+                      value={formData.faculty}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-white focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-colors appearance-none"
+                    >
+                      <option value="">Wybierz wydział...</option>
+                      <option value="WEII">Wydział Elektrotechniki i Informatyki (WEiI)</option>
+                      <option value="WC">Wydział Chemiczny (WC)</option>
+                      <option value="WZ">Wydział Zarządzania (WZ)</option>
+                      <option value="WMiFS">Wydział Matematyki i Fizyki Stosowanej (WMiFS)</option>
+                      <option value="WBMiL">Wydział Budowy Maszyn i Lotnictwa (WBMiL)</option>
+                      <option value="WBIŚiA">Wydział Budownictwa, Inż. Środ. i Architektury (WBIŚiA)</option>
+                      <option value="WMT">Wydział Mechaniczno-Technologiczny (WMT)</option>
+                    </select>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+
+            {/* EMAIL */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Mail className="w-4 h-4 text-slate-500" />
+              </div>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Adres e-mail"
+                required
+                className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-500 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-colors"
+              />
+            </div>
+
+            {/* HASŁO */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Lock className="w-4 h-4 text-slate-500" />
+              </div>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder={isLogin ? "Hasło" : "Hasło (min. 6 znaków)"}
+                required
+                minLength={6}
+                className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-500 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-colors"
+              />
+            </div>
+
             <button
-              onClick={() => { setForgotPasswordMode(false); window.history.replaceState(null, "", window.location.pathname); }}
-              className="text-xs text-slate-400 hover:text-white font-bold flex items-center justify-center gap-1.5 mx-auto"
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(250,204,21,0.2)] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Powrót do logowania
+              {loading ? 'Przetwarzanie...' : (isLogin ? 'Wejdź do gry' : 'Załóż konto')}
             </button>
-          ) : (
-            <button
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-xs text-slate-400 hover:text-yellow-400 font-bold transition-colors"
-            >
-              {isRegister ? 'Masz już konto? Zaloguj się' : 'Nie masz konta? Zarejestruj się'}
-            </button>
-          )}
+            
+          </form>
         </div>
-
       </motion.div>
     </div>
   );
