@@ -2,10 +2,10 @@ from app import app, db, bcrypt
 from models import Player, UniversityChoice, FacultyChoice
 
 TEST_USERS = [
-    {"name": "Marek", "email": "marek@test.pl", "pwd": "test", "uni": "PRZ", "fac": "WEII"},
-    {"name": "Ania", "email": "ania@test.pl", "pwd": "test", "uni": "URZ", "fac": None},
-    {"name": "Kamil", "email": "kamil@test.pl", "pwd": "test", "uni": "PRZ", "fac": "WBMiL"},
-    {"name": "Zosia", "email": "zosia@test.pl", "pwd": "test", "uni": "Other", "fac": None}
+    {"name": "Marek", "email": "marek@test.pl", "pwd": "testtest", "uni": "PRZ", "fac": "WEII"},
+    {"name": "Ania", "email": "ania@test.pl", "pwd": "testtest", "uni": "URZ", "fac": None},
+    {"name": "Kamil", "email": "kamil@test.pl", "pwd": "testtest", "uni": "PRZ", "fac": "WBMiL"},
+    {"name": "Zosia", "email": "zosia@test.pl", "pwd": "testtest", "uni": "Other", "fac": None}
 ]
 
 with app.app_context():
@@ -21,4 +21,4 @@ with app.app_context():
             db.session.add(player)
     
     db.session.commit()
-    print("✅ Utworzono 4 testowe konta. Hasło do wszystkich to: test")
+    print("✅ Utworzono 4 testowe konta. Hasło do wszystkich to: testtest")
