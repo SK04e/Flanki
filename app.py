@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from models import db, Game, Player, Match, UniversityChoice, FacultyChoice, GameStatus, Team
 import random
 import os
@@ -83,7 +83,7 @@ def send_reset_email(email_to, name, reset_url):
     except Exception as e:
         logging.error(f"BŁĄD BREVO (RESET): {str(e)}")
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='frontend/dist', static_url_path='')
 
 CORS(app)
 load_dotenv()
@@ -102,9 +102,13 @@ jwt = JWTManager(app)
 with app.app_context():
     db.create_all()
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/auth/register', methods=['POST'])
 def register():
