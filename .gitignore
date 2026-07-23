@@ -6,3 +6,18 @@ __pycache__/
 todo.md
 verify_all.py
 test_accounts.py
+
+# Node / React
+node_modules/
+dist/
+.vite/
+
+# Python / Flask
+__pycache__/
+*.pyc
+instance/
+.env
+venv/
+.idea/
+.vscode/
+*.db
