@@ -23,4 +23,4 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 # Uruchomienie aplikacji
 EXPOSE 5000
-CMD ["python", "app.py"]
+CMD sh -c "gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --workers 1"
