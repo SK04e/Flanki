@@ -24,7 +24,7 @@ export default function AuthScreen() {
     setError(''); 
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -32,20 +32,17 @@ export default function AuthScreen() {
 
     try {
       if (isLogin) {
-        // LOGOWANIE
-        const res = await api.post('/auth/login', {
-          email: formData.email,
-          password: formData.password
-        });
-        login(res.data.access_token, res.data.player);
+        const result = await login(formData.email, formData.password);
+        
+        if (!result.success) {
+          setError(result.error);
+        }
       } else {
-        // REJESTRACJA
         const payload = {
           name: formData.name,
           email: formData.email,
           password: formData.password,
           university: formData.university || null,
-          // Wysyłamy wydział tylko jeśli wybrano PRZ
           faculty: formData.university === 'PRZ' ? formData.faculty : null
         };
         
