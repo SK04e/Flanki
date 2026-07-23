@@ -492,7 +492,7 @@ def get_history(player_id):
         history_data.append({   
             "ID gry" : game.game_id,
             "ID hosta" : game.host_id,
-            "date": game.date.strftime("%Y-%m-%d"),
+            "date": game.date.strftime("%Y-%m-%d %H:%M") if game.date else None,
             "zwyciezcy" : game.winning_team.value if game.winning_team else None,
             "Twoja drużyna" : match.team.value if match.team else None,
             "Status gry" : game.status.value,
@@ -655,10 +655,10 @@ def cancel_old_games():
 @app.route('/stats', methods=['GET'])
 def get_global_stats():
     total_players = Player.query.count()
-    total_games = Game.query.filter(Game.status==GameStatus.FINISHED).count()
+    total_games = Game.query.filter(Game.status == GameStatus.FINISHED).count()
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    games_today = Game.query.filter(Game.date >= today).count()
+    games_today = Game.query.filter(Game.date >= today, Game.status == GameStatus.FINISHED).count()
     
     return jsonify({
         "total_players": total_players,
