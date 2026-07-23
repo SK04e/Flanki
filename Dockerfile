@@ -1,29 +1,26 @@
-FROM python:3.14-slim
+# --- ETAP 1: Budowanie frontendu (React + Vite) ---
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-# Instalacja Node.js (potrzebnego do zbudowania frontendu Vite)
-RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
-
+# --- ETAP 2: Środowisko Python (Flask + Backend) ---
+FROM python:3.10-slim
 WORKDIR /app
 
-# 1. Budowanie frontendu
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install
-
-COPY frontend/ ./frontend/
-RUN cd frontend && npm run build
-
-# 2. Instalacja zależności Pythona
+# Instalacja zależności Pythona
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 3. Kopiowanie reszty kodu backendu
+# Skopiowanie kodu backendu
 COPY . .
 
-# 4. Przeniesienie zbudowanego frontendu do folderów Flaska (static/templates)
-RUN mkdir -p static templates && \
-    cp -r frontend/dist/assets static/ && \
-    cp frontend/dist/index.html templates/
+# Skopiowanie zbudowanego frontendu z Etapu 1 do folderu static we Flasku
+# (Upewnij się, że ścieżka do static_folder w app.py zgadza się z tym miejscem)
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
+# Uruchomienie aplikacji
 EXPOSE 5000
-
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
+CMD ["python", "app.py"]
