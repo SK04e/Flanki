@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Plus, MapPin, Lock, Unlock, Users, Play, RefreshCw, KeyRound, X, LocateFixed } from 'lucide-react';
+import { Plus, MapPin, Lock, Unlock, Users, Play, RefreshCw, KeyRound, X, LocateFixed, Beer } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 const TOP_CITIES = [
   "Rzeszów", "Warszawa", "Kraków", "Wrocław", "Poznań", 
@@ -16,7 +17,6 @@ export default function Dashboard({ onSelectGame }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Stany dla Modali i Lokalizacji
   const [createModal, setCreateModal] = useState(false);
   const [newLocation, setNewLocation] = useState('Rzeszów');
   const [isExact, setIsExact] = useState(false);
@@ -36,7 +36,7 @@ export default function Dashboard({ onSelectGame }) {
       setStats(statsRes.data);
       setGames(Array.isArray(gamesRes.data) ? gamesRes.data : []);
     } catch (err) {
-      console.error("Błąd pobierania danych:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -46,11 +46,10 @@ export default function Dashboard({ onSelectGame }) {
     fetchData();
   }, []);
 
-  // Ulepszone pobieranie lokalizacji: Miasto + opcjonalnie ulica / miejsce
   const handleGetLocation = () => {
     setIsLocating(true);
     if (!navigator.geolocation) {
-      alert("Twoja przeglądarka nie wspiera geolokalizacji.");
+      toast.error("Twoja przeglądarka nie wspiera geolokalizacji.");
       setIsLocating(false);
       return;
     }
@@ -62,9 +61,7 @@ export default function Dashboard({ onSelectGame }) {
           const data = await res.json();
           
           const addr = data.address || {};
-          // Wyciągamy miasto (czasem w OSM nazywa się town, city lub village)
           const city = addr.city || addr.town || addr.village || addr.municipality || "";
-          // Wyciągamy opcjonalną ulicę lub charakterystyczny punkt
           const road = addr.road || addr.suburb || addr.neighbourhood || addr.amenity || "";
 
           let formattedLocation = "Lokalizacja GPS";
@@ -78,6 +75,7 @@ export default function Dashboard({ onSelectGame }) {
 
           setNewLocation(formattedLocation);
           setIsExact(true);
+          toast.success("Pobrano dokładną lokalizację GPS!");
         } catch (e) {
           setNewLocation("Polska (GPS)");
           setIsExact(true);
@@ -85,13 +83,12 @@ export default function Dashboard({ onSelectGame }) {
         setIsLocating(false);
       },
       () => {
-        alert("Nie udało się pobrać lokalizacji. Wybierz miasto z panelu.");
+        toast.error("Nie udało się pobrać lokalizacji.");
         setIsLocating(false);
       }
     );
   };
 
-  // Tworzenie nowego Lobby
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -104,24 +101,25 @@ export default function Dashboard({ onSelectGame }) {
       setIsExact(false);
       setCreateModal(false);
       setNewLocation('Rzeszów');
+      toast.success("Lobby zostało utworzone!");
       fetchData();
       if (res.data?.game_id) onSelectGame(res.data.game_id);
     } catch (err) {
-      alert(err.response?.data?.error || err.response?.data?.message || 'Błąd tworzenia lobby');
+      toast.error(err.response?.data?.error || 'Błąd tworzenia lobby');
     }
   };
 
-  // Dołączanie do istniejącego Lobby
   const handleJoinSubmit = async (e) => {
     e.preventDefault();
-    if (!joinCode.trim()) return alert('Podaj kod PIN!');
+    if (!joinCode.trim()) return toast.error('Podaj kod PIN!');
     try {
       await api.post(`/games/join/${joinGame.game_id}`, { code: joinCode });
       setJoinModal(false);
       setJoinCode('');
+      toast.success("Dołączono do gry!");
       onSelectGame(joinGame.game_id);
     } catch (err) {
-      alert(err.response?.data?.error || err.response?.data?.message || 'Nie udało się dołączyć');
+      toast.error(err.response?.data?.error || 'Nie udało się dołączyć');
     }
   };
 
@@ -134,7 +132,7 @@ export default function Dashboard({ onSelectGame }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-24">
       
-      {/* Pasek Statystyk */}
+      {/* STATYSTYKI */}
       <div className="grid grid-cols-3 gap-2 bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 backdrop-blur-md">
         <div className="text-center">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gracze</p>
@@ -150,7 +148,7 @@ export default function Dashboard({ onSelectGame }) {
         </div>
       </div>
 
-      {/* Główny przycisk tworzenia Lobby */}
+      {/* PRZYCISK TWORZENIA */}
       <button
         onClick={() => setCreateModal(true)}
         className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-black py-4 rounded-2xl shadow-[0_0_15px_rgba(250,204,21,0.2)] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
@@ -158,7 +156,7 @@ export default function Dashboard({ onSelectGame }) {
         <Plus className="w-5 h-5 stroke-[2.5]" /> STWÓRZ NOWE LOBBY
       </button>
 
-      {/* Lista Aktywnych Gier */}
+      {/* LISTA GIER */}
       <div>
         <div className="flex justify-between items-center mb-3 px-1">
           <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider">Dostępne Lobby</h3>
@@ -167,10 +165,25 @@ export default function Dashboard({ onSelectGame }) {
           </button>
         </div>
 
-        {games.length === 0 ? (
-          <div className="text-center py-10 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-            <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-xs text-slate-400">Brak aktywnych gier w tej chwili.</p>
+        {loading ? (
+          <div className="space-y-2.5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5 animate-pulse flex justify-between items-center">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-slate-800/60 rounded-md" />
+                  <div className="h-3 w-20 bg-slate-800/40 rounded-md" />
+                </div>
+                <div className="w-8 h-8 bg-slate-800/60 rounded-full" />
+              </div>
+            ))}
+          </div>
+        ) : games.length === 0 ? (
+          <div className="text-center py-10 px-4 bg-white/[0.02] rounded-2xl border border-dashed border-white/10 flex flex-col items-center">
+            <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mb-3 text-slate-400 border border-white/10">
+              <Beer className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-300 mb-1">Brak aktywnych gier</h4>
+            <p className="text-xs text-slate-500 max-w-[220px]">Nie ma teraz żadnego otwartego lobby. Bądź pierwszy i załóż własną grę!</p>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -208,7 +221,7 @@ export default function Dashboard({ onSelectGame }) {
         )}
       </div>
 
-      {/* MODAL: Tworzenie Lobby (Radio Panel + Ulepszony GPS) */}
+      {/* MODAL: TWORZENIE LOBBY */}
       <AnimatePresence>
         {createModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
@@ -221,7 +234,7 @@ export default function Dashboard({ onSelectGame }) {
               <form onSubmit={handleCreateSubmit} className="space-y-4">
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lokalizacja (Miasto / Ulica)</label>
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lokalizacja</label>
                     <button
                       type="button"
                       onClick={handleGetLocation}
@@ -233,8 +246,7 @@ export default function Dashboard({ onSelectGame }) {
                     </button>
                   </div>
 
-                  {/* Radio Panel z najczęstszymi miastami */}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                     {TOP_CITIES.map((city) => {
                       const isSelected = newLocation === city && !isExact;
                       return (
@@ -257,7 +269,6 @@ export default function Dashboard({ onSelectGame }) {
                     })}
                   </div>
 
-                  {/* Wyświetlanie aktualnie wybranej lokalizacji lub wyniku GPS */}
                   <div className="mt-3 bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center gap-2">
                     <MapPin className={`w-4 h-4 shrink-0 ${isExact ? 'text-emerald-400' : 'text-yellow-400'}`} />
                     <span className="text-xs font-bold text-white truncate">{newLocation}</span>
@@ -279,7 +290,7 @@ export default function Dashboard({ onSelectGame }) {
         )}
       </AnimatePresence>
 
-      {/* MODAL: Podawanie Kodu PIN do dołączenia */}
+      {/* MODAL: DOŁĄCZANIE PIN */}
       <AnimatePresence>
         {joinModal && joinGame && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">

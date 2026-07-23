@@ -29,7 +29,7 @@ export default function Leaderboard() {
         const res = await api.get('/players', { params });
         setPlayers(res.data);
       } catch (err) {
-        console.error("Błąd pobierania rankingu", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -46,7 +46,7 @@ export default function Leaderboard() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pb-24">
       
-      {/* Nagłówek i filtry */}
+      {/* NAGŁÓWEK I FILTRY */}
       <div className="bg-slate-900/60 p-4 rounded-3xl border border-slate-800/80 backdrop-blur-md shadow-xl">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-yellow-400/10 flex items-center justify-center border border-yellow-400/20">
@@ -88,12 +88,25 @@ export default function Leaderboard() {
         </div>
       </div>
 
-      {/* Lista Graczy - Nowoczesne kafelki z odstępami i czystym układem */}
+      {/* LISTA RANKINGOWA */}
       <div className="space-y-2.5">
         {loading ? (
-          <div className="text-center py-10 text-xs text-yellow-400 animate-pulse font-bold">Wczytywanie graczy...</div>
+          <div className="space-y-2.5">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-[76px] bg-white/[0.02] rounded-2xl border border-white/5 animate-pulse flex items-center justify-between px-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-8 h-8 rounded-xl bg-slate-800/60" />
+                  <div className="space-y-2">
+                    <div className="w-24 h-3 bg-slate-800/60 rounded" />
+                    <div className="w-16 h-2 bg-slate-800/40 rounded" />
+                  </div>
+                </div>
+                <div className="w-20 h-8 bg-slate-800/60 rounded-lg" />
+              </div>
+            ))}
+          </div>
         ) : players.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-xs bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
+          <div className="text-center py-10 text-slate-400 text-xs bg-white/[0.02] rounded-2xl border border-dashed border-white/10">
             Brak graczy spełniających kryteria.
           </div>
         ) : (
@@ -165,7 +178,7 @@ export default function Leaderboard() {
         )}
       </div>
 
-      {/* MODAL: Karta Gracza (Player Inspector) */}
+      {/* MODAL: KARTA GRACZA */}
       <AnimatePresence>
         {selectedPlayer && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
