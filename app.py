@@ -464,7 +464,13 @@ def finish_route(game_id):
         return jsonify({"error" : "Gra nie jest w toku"}), 400
 
     game.status = GameStatus.FINISHED
-    game.winning_team = Team(winning_team)
+
+    if winning_team in ['A', 'B']:
+        game.winning_team = Team[winning_team]
+    elif winning_team in ['1', '2']:
+        game.winning_team = Team(winning_team)
+    else:
+        game.winning_team = None
 
     for match in game.matches:
         player = match.player
@@ -493,9 +499,9 @@ def get_history(player_id):
             "ID gry" : game.game_id,
             "ID hosta" : game.host_id,
             "date": game.date.strftime("%Y-%m-%d %H:%M") if game.date else None,
-            "zwyciezcy" : game.winning_team.value if game.winning_team else None,
-            "Twoja drużyna" : match.team.value if match.team else None,
-            "Status gry" : game.status.value,
+            "zwyciezcy" : game.winning_team.name if game.winning_team else None,
+            "Twoja drużyna" : match.team.name if match.team else None,
+            "Status gry" : game.status.name,
         })
 
     return {"Gracz" : player.name, "Historia gry" : history_data}, 200
@@ -535,14 +541,6 @@ def get_game_details(game_id):
     if not game:
         return jsonify({"error" : f"Nie znaleziono gry o id {game_id}"}), 404
 
-    players_data = []
-    for match in game.matches:
-        p_dict = match.player.to_dict()
-        p_dict['team'] = match.team.value if match.team else None 
-        players_data.append(p_dict)
-
-    host = Player.query.get(game.host_id)
-    
     return jsonify(get_game_dict(game)), 200
         
 @app.route('/games/<int:game_id>/join_team/<string:team_name>', methods=['POST'])
