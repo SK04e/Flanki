@@ -139,6 +139,7 @@ def register():
         return jsonify({"error" : "Nick już jest zajęty"}), 409
 
     nick = nick.lower()
+    email = email.lower()
 
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:

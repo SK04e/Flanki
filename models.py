@@ -67,21 +67,31 @@ class Player(db.Model):
     matches = db.relationship('Match')
     
     def to_dict(self):
-        games_lost = max(0, self.games_played - self.games_won)
+        uni_val = self.university.value if hasattr(self.university, 'value') else self.university
+        uni_name = self.university.name if hasattr(self.university, 'name') else self.university
+        
+        fac_val = self.faculty.value if hasattr(self.faculty, 'value') else self.faculty
+        fac_name = self.faculty.name if hasattr(self.faculty, 'name') else self.faculty
+        
+        safe_date = self.join_date.strftime("%Y-%m-%d") if self.join_date and hasattr(self.join_date, 'strftime') else None
+        
+        games_p = self.games_played or 0
+        games_w = self.games_won or 0
+        
         return {
             "player_id": self.player_id,
-            "nick" : self.nick,
+            "nick": self.nick,
             "name": self.name,
-            "email" : self.email,
-            "games_played": self.games_played,
-            "games_won": self.games_won,
-            "games_lost": games_lost,
-            "university": self.university.value if self.university else None,
-            "university_value" : self.university.name if self.university else None,
-            "faculty": self.faculty.value if self.faculty else None,
-            "faculty_value": self.faculty.name if self.faculty else None,
-            "join_date" : self.join_date.strftime("%Y-%m-%d"),
-            "exp" : self.exp,
+            "email": self.email,
+            "games_played": games_p,
+            "games_won": games_w,
+            "games_lost": max(0, games_p - games_w),
+            "university": uni_val,
+            "university_value": uni_name,
+            "faculty": fac_val,
+            "faculty_value": fac_name,
+            "join_date": safe_date,
+            "xp": getattr(self, 'xp', 0), # Złapie poprawnie "xp" bez wywalania błędu
         }
 
 class Match(db.Model):
