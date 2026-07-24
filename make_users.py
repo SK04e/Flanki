@@ -2,10 +2,10 @@ from app import app, db, bcrypt
 from models import Player, UniversityChoice, FacultyChoice
 
 TEST_USERS = [
-    {"name": "Marek", "email": "marek@test.pl", "pwd": "testtest", "uni": "PRZ", "fac": "WEII"},
-    {"name": "Ania", "email": "ania@test.pl", "pwd": "testtest", "uni": "URZ", "fac": None},
-    {"name": "Kamil", "email": "kamil@test.pl", "pwd": "testtest", "uni": "PRZ", "fac": "WBMiL"},
-    {"name": "Zosia", "email": "zosia@test.pl", "pwd": "testtest", "uni": "Other", "fac": None}
+    {"name": "Marek", "nick" : "mareczek" ,"email": "marek@test.pl", "pwd": "testtest", "uni": "PRZ", "fac": "WEII"},
+    {"name": "Ania", "nick" : "aneczka" , "email": "ania@test.pl", "pwd": "testtest", "uni": "URZ", "fac": None},
+    {"name": "Kamil", "nick" : "kamilek" , "email": "kamil@test.pl", "pwd": "testtest", "uni": "PRZ", "fac": "WBMiL"},
+    {"name": "Zosia", "nick" : "zosiula" , "email": "zosia@test.pl", "pwd": "testtest", "uni": "Other", "fac": None}
 ]
 
 with app.app_context():
@@ -14,6 +14,7 @@ with app.app_context():
             hashed = bcrypt.generate_password_hash(u["pwd"]).decode('utf-8')
             player = Player(
                 name=u["name"], 
+                nick=u["nick"],
                 email=u["email"], 
                 password=hashed, 
                 is_verified=True 

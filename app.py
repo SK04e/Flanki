@@ -13,6 +13,9 @@ from itsdangerous import URLSafeTimedSerializer
 from threading import Thread
 import logging
 import requests
+from sqlalchemy import or_
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -84,6 +87,8 @@ def send_reset_email(email_to, name, reset_url):
         logging.error(f"BŁĄD BREVO (RESET): {str(e)}")
 
 app = Flask(__name__, static_folder='frontend/dist', static_url_path='')
+limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
+
 
 CORS(app)
 load_dotenv()
@@ -116,25 +121,28 @@ def serve(path):
 def register():
     data = request.get_json()
     name = data.get('name')
+    nick = data.get('nick')
     email = data.get('email')
     password = data.get('password')
     university = data.get('university')
     faculty = data.get('faculty')
     
-    if not name or not email or not password:
-        return jsonify({"error" : "Imię, email i hasło są wymagane!"}), 400
+    if not name or not email or not password or not nick:
+        return jsonify({"error" : "Imię, nick, email i hasło są wymagane!"}), 400
     if len(password) < 6:
         return jsonify({"error": "Hasło musi mieć minimum 6 znaków!"}), 400
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         return jsonify({"error": "Niepoprawny format adresu email!"}), 400
     if Player.query.filter_by(email=email).first():
         return jsonify({"error" : "Email już istnieje"}), 409
-    if Player.query.filter_by(name=name).first():
+    if Player.query.filter_by(nick=nick).first():
         return jsonify({"error" : "Nick już jest zajęty"}), 409
+
+    nick = nick.lower()
 
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:
-        new_player = Player(name=name, email=email, password=hashed, university=university, faculty=faculty, is_verified=False)
+        new_player = Player(nick=nick, name=name, email=email, password=hashed, university=university, faculty=faculty, is_verified=False)
         db.session.add(new_player)
         db.session.commit()
         
@@ -173,12 +181,20 @@ def confirm_email(token):
     return "Twoje konto zostało pomyślnie aktywowane! Możesz zamknąć tę kartę i wejść do aplikacji.", 200
 
 @app.route('/auth/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
-    data = request.get_json()
-    email = data.get('email')
+    data = request.get_json() or {}
+
+    identifier = data.get('identifier') or data.get('email')
     password = data.get('password')
+
+    if not identifier or not password:
+        return jsonify({"error": "Wpisz email/nick oraz hasło!"}), 400
+
+    identifier_clean = identifier.strip().lower()
+        
+    player = Player.query.filter(or_(Player.email == identifier_clean, Player.nick == identifier_clean)).first()
     
-    player = Player.query.filter_by(email=email).first()
     if player and bcrypt.check_password_hash(player.password, password):
         if not player.is_verified:
             return jsonify({"error": "Musisz najpierw zweryfikować swój adres e-mail!"}), 403
@@ -196,7 +212,9 @@ def login():
             "player": player.to_dict(),
             "active_game_id": active_game_id
         }), 200
-    return jsonify({"error": "Błędny email lub hasło"}), 401
+        
+    return jsonify({"error": "Błędny email/nick lub hasło"}), 401
+
 
 @app.route('/games', methods=['GET'])
 def get_all_games():
@@ -707,6 +725,53 @@ def reset_password():
     db.session.commit()
     return jsonify({"message": "Hasło zostało pomyślnie zmienione! Możesz się zalogować."}), 200
 
+@app.route('/players/me', methods=['PUT'])
+@jwt_required()
+def modify_player():
+    player_id = int(get_jwt_identity())
+    data = request.get_json() or {}
+    
+    new_name = data.get('new_name')
+    new_university = data.get('new_university')
+    new_faculty = data.get('new_faculty')
+    new_nick = data.get('new_nick')
 
+    current_player = Player.query.get_or_404(player_id)
+
+    if new_nick and new_nick != getattr(current_player, 'nick', current_player.name):
+        existing_player = Player.query.filter_by(nick=new_nick).first() if hasattr(Player, 'nick') else Player.query.filter_by(name=new_nick).first()
+        if existing_player:
+            return jsonify({"error": "Nick jest już zajęty!"}), 409
+        
+        if hasattr(current_player, 'nick'):
+            current_player.nick = new_nick
+        else:
+            current_player.name = new_nick
+
+    if new_name is not None:
+        current_player.name = new_name
+
+    if new_university:
+        try:
+            current_player.university = UniversityChoice[new_university]
+        except KeyError:
+            return jsonify({"error": "Nieprawidłowa uczelnia!"}), 400
+
+    if new_faculty:
+        try:
+            current_player.faculty = FacultyChoice[new_faculty]
+        except KeyError:
+            return jsonify({"error": "Nieprawidłowy wydział!"}), 400
+
+    try:
+        db.session.commit()
+        return jsonify({
+            "message": "Profil został pomyślnie zaktualizowany!",
+            "player": current_player.to_dict()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Błąd podczas zapisu do bazy danych."}), 500
+    
 if __name__ == '__main__':
     app.run(debug=True)

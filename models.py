@@ -17,7 +17,7 @@ class Team(enum.Enum):
 class UniversityChoice(enum.Enum):
     PRZ = "Prz"
     URZ = "Urz"
-    Other = "Inny"
+    Other = "Inna uczelnia"
 
 class GameMode(enum.Enum):
     MANUAL = "Manual"
@@ -31,6 +31,7 @@ class FacultyChoice(enum.Enum):
     WBMiL = 'Wydział Budowy Maszyn i Lotnictwa'
     WBIŚiA = 'Wydział Budownictwa, Inżynierii Środowiska i Architektury'
     WMT = 'Wydział Mechaniczno-Technologiczny'
+    OTHER = 'Inny Wydział'
 
 class Game(db.Model):
     __tablename__ = 'games'
@@ -52,7 +53,8 @@ class Player(db.Model):
     __tablename__ = 'players'
     
     player_id = db.Column(db.Integer, primary_key = True)
-    name = db.Column(db.String(50), nullable=False, unique=True)
+    nick = db.Column(db.String(50), nullable=False, unique=True)
+    name = db.Column(db.String(50), nullable=False, unique=False)
     games_played = db.Column(db.Integer, nullable=False, default=0)
     games_won = db.Column(db.Integer, nullable=False, default=0)
     university = db.Column(db.Enum(UniversityChoice), nullable=True)
@@ -60,19 +62,26 @@ class Player(db.Model):
     email = db.Column(db.String(50), unique = True, nullable = False)
     password = db.Column(db.String(128), nullable = False)
     is_verified = db.Column(db.Boolean, default=False)
+    xp = db.Column(db.Integer, default = 0)
+    join_date = db.Column(db.DateTime, default = datetime.now)
     matches = db.relationship('Match')
     
     def to_dict(self):
         games_lost = max(0, self.games_played - self.games_won)
         return {
             "player_id": self.player_id,
+            "nick" : self.nick,
             "name": self.name,
+            "email" : self.email,
             "games_played": self.games_played,
             "games_won": self.games_won,
             "games_lost": games_lost,
-            "university": self.university.name if self.university else None,
-            "faculty": self.faculty.name if self.faculty else None,
-            "email" : self.email
+            "university": self.university.value if self.university else None,
+            "university_value" : self.university.name if self.university else None,
+            "faculty": self.faculty.value if self.faculty else None,
+            "faculty_value": self.faculty.name if self.faculty else None,
+            "join_date" : self.join_date.strftime("%Y-%m-%d"),
+            "exp" : self.exp,
         }
 
 class Match(db.Model):

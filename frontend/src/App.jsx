@@ -112,11 +112,11 @@ function MainApp() {
           </div>
 
           <div className="w-1/3 flex justify-end items-center gap-3">
-            {user?.name && (
+            {user?.nick && (
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 {/* Powiększone imię gracza (text-sm) */}
-                <span className="text-sm font-bold text-emerald-400 tracking-wider truncate max-w-[90px]">{user.name}</span>
+                <span className="text-sm font-bold text-emerald-400 tracking-wider truncate max-w-[90px]">{user.nick}</span>
               </div>
             )}
             <button onClick={logout} className="text-slate-400 hover:text-red-400 transition-colors bg-slate-900/50 p-1.5 rounded-lg border border-transparent hover:border-red-500/20">

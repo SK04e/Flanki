@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Medal, Award, X, Target, User } from 'lucide-react';
+import { Trophy, Medal, Award, X } from 'lucide-react';
 
 const UNIVERSITIES = {
   ALL: ['ALL'],
-  PRz: ['ALL', 'WEII', 'WC', 'WZ', 'WMiFS', 'WBMiL', 'WBIŚiA', 'WMT'],
-  URz: ['ALL'],
+  PRZ: ['ALL', 'WEII', 'WC', 'WZ', 'WMiFS', 'WBMiL', 'WBIŚiA', 'WMT'],
+  URZ: ['ALL'],
   Other: ['ALL']
 };
+
+// Słowniki skrótów do wyświetlania na karcie i w rankingu
+const UNI_SHORT = { PRZ: 'PRz', URZ: 'URz', Other: 'Inna' };
+const FACULTY_SHORT = { WEII: 'WEiI', WC: 'WCh', WZ: 'WZ', WMiFS: 'WMiFS', WBMiL: 'WBMiL', WBIŚiA: 'WBIŚiA', WMT: 'WMT', OTHER: '' };
 
 export default function Leaderboard() {
   const [players, setPlayers] = useState([]);
@@ -27,7 +31,7 @@ export default function Leaderboard() {
         if (filterFac !== 'ALL') params.faculty = filterFac;
 
         const res = await api.get('/players', { params });
-        setPlayers(res.data);
+        setPlayers(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -67,8 +71,8 @@ export default function Leaderboard() {
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-400/50"
             >
               <option value="ALL">Wszystkie</option>
-              <option value="PRz">Politechnika (PRz)</option>
-              <option value="URz">Uniwersytet (URz)</option>
+              <option value="PRZ">Politechnika (PRz)</option>
+              <option value="URZ">Uniwersytet (URz)</option>
               <option value="Other">Inne</option>
             </select>
           </div>
@@ -81,7 +85,7 @@ export default function Leaderboard() {
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-400/50 disabled:opacity-50"
             >
               {UNIVERSITIES[filterUni]?.map(f => (
-                <option key={f} value={f}>{f === 'ALL' ? 'Wszystkie' : f}</option>
+                <option key={f} value={f}>{f === 'ALL' ? 'Wszystkie' : (FACULTY_SHORT[f] || f)}</option>
               ))}
             </select>
           </div>
@@ -126,9 +130,22 @@ export default function Leaderboard() {
             else if (isSecond) rankContent = <Medal className="w-4 h-4 text-slate-300" />;
             else if (isThird) rankContent = <Award className="w-4 h-4 text-amber-500" />;
 
-            const playerSub = [player.university, player.faculty]
-              .filter(item => item && item.trim() !== '' && item.trim() !== '.' && item !== 'ALL')
-              .join(' • ');
+            // Wyliczanie zwięzłego podtytułu (np. PRz • WEiI / Inna uczelnia)
+            const uKey = player.university_value;
+            const fKey = player.faculty_value;
+            const uShort = UNI_SHORT[uKey] || player.university || '';
+            const fShort = FACULTY_SHORT[fKey] !== undefined ? FACULTY_SHORT[fKey] : (player.faculty || '');
+
+            let playerSub = '';
+            if (uKey === 'Other') {
+              playerSub = 'Inna uczelnia';
+            } else if (!fShort) {
+              playerSub = uShort;
+            } else {
+              playerSub = `${uShort} • ${fShort}`;
+            }
+
+            const playerNick = player.nick || player.name || 'Gracz';
 
             return (
               <motion.div
@@ -153,10 +170,10 @@ export default function Leaderboard() {
                   </div>
                   <div>
                     <h3 className={`font-black text-sm tracking-wide group-hover:text-yellow-400 transition-colors ${isFirst ? 'text-yellow-400' : 'text-white'}`}>
-                      {player.name}
+                      {playerNick}
                     </h3>
                     <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">
-                      {playerSub || 'N/A'}
+                      {playerSub || 'BRAK'}
                     </p>
                   </div>
                 </div>
@@ -187,35 +204,48 @@ export default function Leaderboard() {
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-2xl mx-auto flex items-center justify-center text-slate-950 font-black text-3xl shadow-[0_0_20px_rgba(250,204,21,0.3)] mb-4">
-                {selectedPlayer.name.charAt(0).toUpperCase()}
-              </div>
+              {(() => {
+                const modalNick = selectedPlayer.nick || selectedPlayer.name || 'Gracz';
+                const uKey = selectedPlayer.university_value;
+                const fKey = selectedPlayer.faculty_value;
+                const uShort = UNI_SHORT[uKey] || selectedPlayer.university || '';
+                const fShort = FACULTY_SHORT[fKey] !== undefined ? FACULTY_SHORT[fKey] : (selectedPlayer.faculty || '');
+                const modalSub = uKey === 'Other' ? 'Inna uczelnia' : (!fShort ? uShort : `${uShort} • ${fShort}`);
 
-              <h2 className="text-xl font-black text-white">{selectedPlayer.name}</h2>
-              <p className="text-xs text-slate-400 font-medium mt-0.5 mb-6">
-                {[selectedPlayer.university, selectedPlayer.faculty].filter(i => i && i !== '.' && i !== 'ALL').join(' • ') || 'N/A'}
-              </p>
+                return (
+                  <>
+                    <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-2xl mx-auto flex items-center justify-center text-slate-950 font-black text-3xl shadow-[0_0_20px_rgba(250,204,21,0.3)] mb-4">
+                      {modalNick.charAt(0).toUpperCase()}
+                    </div>
 
-              <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800 mb-6">
-                <div>
-                  <p className="text-[9px] text-slate-500 uppercase font-bold">Mecze</p>
-                  <p className="text-base font-black text-white mt-0.5">{selectedPlayer.games_played || 0}</p>
-                </div>
-                <div className="border-x border-slate-800">
-                  <p className="text-[9px] text-slate-500 uppercase font-bold">Wygrane</p>
-                  <p className="text-base font-black text-yellow-400 mt-0.5">{selectedPlayer.games_won || 0}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] text-slate-500 uppercase font-bold">Win Rate</p>
-                  <p className={`text-base font-black mt-0.5 ${
-                    (selectedPlayer.games_played > 0 ? Math.round((selectedPlayer.games_won / selectedPlayer.games_played) * 100) : 0) > 50 
-                      ? 'text-emerald-400' 
-                      : 'text-red-400'
-                  }`}>
-                    {selectedPlayer.games_played > 0 ? Math.round((selectedPlayer.games_won / selectedPlayer.games_played) * 100) : 0}%
-                  </p>
-                </div>
-              </div>
+                    <h2 className="text-xl font-black text-white">{modalNick}</h2>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5 mb-6">
+                      {modalSub || 'N/A'}
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800 mb-6">
+                      <div>
+                        <p className="text-[9px] text-slate-500 uppercase font-bold">Mecze</p>
+                        <p className="text-base font-black text-white mt-0.5">{selectedPlayer.games_played || 0}</p>
+                      </div>
+                      <div className="border-x border-slate-800">
+                        <p className="text-[9px] text-slate-500 uppercase font-bold">Wygrane</p>
+                        <p className="text-base font-black text-yellow-400 mt-0.5">{selectedPlayer.games_won || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-slate-500 uppercase font-bold">Win Rate</p>
+                        <p className={`text-base font-black mt-0.5 ${
+                          (selectedPlayer.games_played > 0 ? Math.round((selectedPlayer.games_won / selectedPlayer.games_played) * 100) : 0) > 50 
+                            ? 'text-emerald-400' 
+                            : 'text-red-400'
+                        }`}>
+                          {selectedPlayer.games_played > 0 ? Math.round((selectedPlayer.games_won / selectedPlayer.games_played) * 100) : 0}%
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <button onClick={() => setSelectedPlayer(null)} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors">
                 Zamknij kartę

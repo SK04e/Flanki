@@ -4,7 +4,6 @@ import api from '../api';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  // Odczytujemy token i dane użytkownika ze stałej pamięci przeglądarki
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
@@ -23,29 +22,34 @@ export const AuthProvider = ({ children }) => {
     else localStorage.removeItem('user');
   }, [user]);
 
-  const login = async (email, password) => {
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      
-      const jwtToken = response.data.access_token;
-      if (jwtToken) {
-        setToken(jwtToken);
-        setUser(response.data.player);
-        
-        // Zapiszmy też id aktywnej gry, jeśli w niej jesteśmy
-        if (response.data.active_game_id) {
-          localStorage.setItem('activeGameId', response.data.active_game_id);
-        }
-        
-        return { success: true };
-      }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || error.response?.data?.message || 'Błąd logowania.' 
-      };
-    }
+  const updateUser = (updatedUserData) => {
+    setUser(updatedUserData);
+    localStorage.setItem('user', JSON.stringify(updatedUserData));
   };
+
+const login = async (identifier, password) => {
+  try {
+    const response = await api.post('/auth/login', { 
+      identifier, 
+      password 
+    });
+    
+    const jwtToken = response.data.access_token;
+    if (jwtToken) {
+      setToken(jwtToken);
+      setUser(response.data.player);
+      if (response.data.active_game_id) {
+        localStorage.setItem('activeGameId', response.data.active_game_id);
+      }
+      return { success: true };
+    }
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error.response?.data?.error || error.response?.data?.message || 'Błąd logowania.' 
+    };
+  }
+};
 
   const logout = () => {
     setToken(null);
@@ -56,7 +60,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout }}>
+    <AuthContext.Provider value={{ token, user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

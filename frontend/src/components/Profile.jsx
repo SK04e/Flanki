@@ -3,16 +3,47 @@ import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { User, Trophy, Target, History, X, MapPin, Calendar, Crown, EyeOff, Eye, Settings, Clock } from 'lucide-react';
+import { User, Trophy, Target, History, X, MapPin, Calendar, Crown, EyeOff, Eye, Settings } from 'lucide-react';
 
+// Słownik powiązań kluczy uczelni z kluczami wydziałów
 const UNIVERSITIES_LIST = {
-  PRz: ['WEII', 'WC', 'WZ', 'WMiFS', 'WBMiL', 'WBIŚiA', 'WMT'],
-  URz: ['Ogólny'],
-  Other: ['Inny']
+  PRZ: ['WEII', 'WC', 'WZ', 'WMiFS', 'WBMiL', 'WBIŚiA', 'WMT'],
+  URZ: ['OTHER'],
+  Other: ['OTHER']
+};
+
+// Skróty do wyświetlania na kartach/profilu
+const UNI_SHORT = {
+  PRZ: 'PRz',
+  URZ: 'URz',
+  Other: 'Inna uczelnia'
+};
+
+const FACULTY_SHORT = {
+  WEII: 'WEiI',
+  WC: 'WCh',
+  WZ: 'WZ',
+  WMiFS: 'WMiFS',
+  WBMiL: 'WBMiL',
+  WBIŚiA: 'WBIŚiA',
+  WMT: 'WMT',
+  OTHER: ''
+};
+
+// Pełne nazwy wyświetlane użytkownikowi w formularzu edycji
+const FACULTY_FULL_NAMES = {
+  WEII: 'Wydział Elektrotechniki i Informatyki',
+  WC: 'Wydział Chemiczny',
+  WZ: 'Wydział Zarządzania',
+  WMiFS: 'Wydział Matematyki i Fizyki Stosowanej',
+  WBMiL: 'Wydział Budowy Maszyn i Lotnictwa',
+  WBIŚiA: 'Wydział Budownictwa, Inżynierii Środowiska i Architektury',
+  WMT: 'Wydział Mechaniczno-Technologiczny',
+  OTHER: 'Inny Wydział / Ogólny'
 };
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hideCanceled, setHideCanceled] = useState(true);
@@ -20,10 +51,12 @@ export default function Profile() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [gamesWon, setGamesWon] = useState(0);
 
+  // Stany formularza edycji - używają KLUCZY (_value) z backendu
   const [editModal, setEditModal] = useState(false);
+  const [editNick, setEditNick] = useState(user?.nick || user?.name || '');
   const [editName, setEditName] = useState(user?.name || '');
-  const [editUni, setEditUni] = useState(user?.university || 'PRz');
-  const [editFac, setEditFac] = useState(user?.faculty || 'WEII');
+  const [editUni, setEditUni] = useState(user?.university_value || 'PRZ');
+  const [editFac, setEditFac] = useState(user?.faculty_value || 'WEII');
 
   const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [matchDetails, setMatchDetails] = useState(null);
@@ -47,7 +80,7 @@ export default function Profile() {
         setLoading(false);
       }
     };
-    if (user) fetchHistory();
+    if (user?.player_id) fetchHistory();
   }, [user]);
 
   const openMatchDetails = async (gameId) => {
@@ -67,13 +100,20 @@ export default function Profile() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     try {
-      await api.put(`/players/${user.player_id}`, {
-        name: editName,
-        university: editUni,
-        faculty: editFac
+      // Wysyłamy klucze: editUni ("PRZ") i editFac ("WEII")
+      const res = await api.put('/players/me', {
+        new_nick: editNick,
+        new_name: editName,
+        new_university: editUni,
+        new_faculty: editFac
       });
-      toast.success("Zaktualizowano profil! Odśwież stronę, aby zobaczyć zmiany.");
+
+      if (res.data.player) {
+        updateUser(res.data.player);
+      }
       setEditModal(false);
+
+      toast.success(res.data.message || "Zaktualizowano profil!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Nie udało się zaktualizować profilu");
     }
@@ -83,14 +123,31 @@ export default function Profile() {
 
   const winRate = gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0;
   const filteredHistory = history.filter(match => hideCanceled ? match['Status gry']?.toLowerCase() !== 'canceled' : true);
-  const userSubtitle = [user.university, user.faculty].filter(item => item && item.trim() !== '' && item.trim() !== '.').join(' • ');
+  
+  const playerNick = user.nick || user.name || 'Gracz';
+
+  // Formatowanie opisu uczelni i wydziału na wizytówce (używamy KLUCZY)
+  const uniKey = user.university_value;
+  const facKey = user.faculty_value;
+
+  const uniLabel = UNI_SHORT[uniKey] || user.university || '';
+  const facLabel = FACULTY_SHORT[facKey] !== undefined ? FACULTY_SHORT[facKey] : (user.faculty || '');
+
+  let userSubtitle = '';
+  if (uniKey === 'Other') {
+    userSubtitle = 'Inna uczelnia';
+  } else if (!facLabel) {
+    userSubtitle = uniLabel || 'Brak uczelni';
+  } else {
+    userSubtitle = `${uniLabel} • ${facLabel}`;
+  }
 
   const MatchPlayerCard = ({ p, isWinner }) => (
     <div className={`p-2 rounded-xl mb-1 flex items-center gap-2 border bg-slate-950/50 ${isWinner ? 'border-emerald-500/30' : 'border-slate-800/50'}`}>
       <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">
-        {p.name.charAt(0).toUpperCase()}
+        {(p.nick || p.name || 'G').charAt(0).toUpperCase()}
       </div>
-      <span className="text-xs font-bold text-slate-200 truncate">{p.name}</span>
+      <span className="text-xs font-bold text-slate-200 truncate">{p.nick || p.name}</span>
       {isWinner && <Crown className="w-3 h-3 text-emerald-400 ml-auto" />}
     </div>
   );
@@ -103,11 +160,21 @@ export default function Profile() {
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="flex items-center gap-5">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center text-slate-950 font-black text-2xl shadow-[0_0_20px_rgba(250,204,21,0.3)] shrink-0">
-            {user.name.charAt(0).toUpperCase()}
+            {playerNick.charAt(0).toUpperCase()}
           </div>
           <div>
-            <h2 className="text-xl font-black text-white tracking-wide">{user.name}</h2>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">{userSubtitle || 'Brak przypisanej uczelni'}</p>
+            <h2 className="text-xl font-black text-white tracking-wide">{playerNick}</h2>
+            
+            {user.name && user.nick && user.name.toLowerCase() !== user.nick.toLowerCase() && (
+              <p className="text-xs text-yellow-400 font-semibold">{user.name}</p>
+            )}
+
+            <p className="text-xs text-slate-400 font-medium mt-0.5">{userSubtitle}</p>
+            {user.join_date && (
+              <p className="text-[10px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-yellow-400" /> Dołączył: {user.join_date}
+              </p>
+            )}
           </div>
         </div>
         <button onClick={() => setEditModal(true)} className="p-3 bg-slate-950 border border-slate-800 hover:border-yellow-400/50 text-slate-300 hover:text-yellow-400 rounded-2xl transition-all shadow-md">
@@ -134,7 +201,7 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* HISTORIA MECZÓW (PRAWDZIWE PRZEJRZYSTE SZKŁO) */}
+      {/* HISTORIA MECZÓW */}
       <div className="space-y-3">
         <div className="flex justify-between items-center px-1">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -197,7 +264,7 @@ export default function Profile() {
         )}
       </div>
 
-      {/* MODAL: Ustawienia / Edycja Profilu */}
+      {/* MODAL: EDYCJA PROFILU */}
       <AnimatePresence>
         {editModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
@@ -207,31 +274,71 @@ export default function Profile() {
               
               <form onSubmit={handleUpdateProfile} className="space-y-4">
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Nazwa / Nick</label>
-                  <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"/>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Nick w grze</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={editNick} 
+                    onChange={(e) => setEditNick(e.target.value)} 
+                    className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
+                  />
                 </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Imię</label>
+                  <input 
+                    type="text" 
+                    value={editName} 
+                    onChange={(e) => setEditName(e.target.value)} 
+                    placeholder={user?.name || "Wpisz imię..."}
+                    className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
+                  />
+                </div>
+
+                {/* Wybór Uczelni - Value to KLUCZ (PRZ, URZ, Other), Wyświetla ładny tekst */}
                 <div>
                   <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Uczelnia</label>
-                  <select value={editUni} onChange={(e) => {setEditUni(e.target.value); setEditFac(UNIVERSITIES_LIST[e.target.value]?.[0] || 'Ogólny');}} className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50">
-                    <option value="PRz" className="bg-slate-900">Politechnika (PRz)</option>
-                    <option value="URz" className="bg-slate-900">Uniwersytet (URz)</option>
-                    <option value="Other" className="bg-slate-900">Inna</option>
+                  <select 
+                    value={editUni} 
+                    onChange={(e) => {
+                      const newUni = e.target.value;
+                      setEditUni(newUni); 
+                      setEditFac(UNIVERSITIES_LIST[newUni]?.[0] || 'OTHER');
+                    }} 
+                    className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
+                  >
+                    <option value="PRZ" className="bg-slate-900">Politechnika Rzeszowska (PRz)</option>
+                    <option value="URZ" className="bg-slate-900">Uniwersytet Rzeszowski (URz)</option>
+                    <option value="Other" className="bg-slate-900">Inna uczelnia</option>
                   </select>
                 </div>
+
+                {/* Wybór Wydziału - Value to KLUCZ (WEII, WC, itd.), Wyświetla pełną nazwę */}
                 <div>
                   <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Wydział</label>
-                  <select value={editFac} onChange={(e) => setEditFac(e.target.value)} className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50">
-                    {UNIVERSITIES_LIST[editUni]?.map(f => <option key={f} value={f} className="bg-slate-900">{f}</option>)}
+                  <select 
+                    value={editFac} 
+                    onChange={(e) => setEditFac(e.target.value)} 
+                    className="w-full mt-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400/50"
+                  >
+                    {UNIVERSITIES_LIST[editUni]?.map(fKey => (
+                      <option key={fKey} value={fKey} className="bg-slate-900">
+                        {FACULTY_FULL_NAMES[fKey] || fKey}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <button type="submit" className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(250,204,21,0.2)] mt-2">Zapisz zmiany</button>
+
+                <button type="submit" className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(250,204,21,0.2)] mt-2">
+                  Zapisz zmiany
+                </button>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL: Match Room */}
+      {/* MODAL: MATCH ROOM */}
       <AnimatePresence>
         {selectedMatchId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">

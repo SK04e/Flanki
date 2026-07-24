@@ -16,7 +16,7 @@ export default function AuthScreen() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: '', // Nowe pole do potwierdzenia hasła
+    confirmPassword: '',
     university: '',
     faculty: ''
   });
@@ -39,7 +39,7 @@ export default function AuthScreen() {
         setSuccessMessage(res.data.message || 'Jeśli e-mail istnieje w bazie, wysłano link.');
         setIsResettingPassword(false);
       } else if (isLogin) {
-        // LOGOWANIE
+        // LOGOWANIE (przekazujemy mail lub nick)
         const result = await login(formData.email, formData.password);
         if (!result.success) {
           setError(result.error);
@@ -54,10 +54,10 @@ export default function AuthScreen() {
 
         const payload = {
           name: formData.name,
+          nick: formData.name, // Przypisujemy nick z wpisanego pola
           email: formData.email,
           password: formData.password,
           university: formData.university || null,
-          // Wysyłamy wydział tylko jeśli wybrano PRZ
           faculty: formData.university === 'PRZ' ? formData.faculty : null
         };
         
@@ -106,7 +106,7 @@ export default function AuthScreen() {
         {/* KARTA FORMULARZA */}
         <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-2xl">
           
-          {/* PRZEŁĄCZNIK LOGOWANIE / REJESTRACJA (Ukryty podczas resetowania hasła) */}
+          {/* PRZEŁĄCZNIK LOGOWANIE / REJESTRACJA */}
           {!isResettingPassword && (
             <div className="flex bg-slate-950/50 p-1 rounded-xl mb-6">
               <button
@@ -211,17 +211,17 @@ export default function AuthScreen() {
               </motion.div>
             )}
 
-            {/* EMAIL */}
+            {/* EMAIL / NICK */}
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Mail className="w-4 h-4 text-slate-500" />
               </div>
               <input
-                type="email"
+                type={isLogin ? "text" : "email"} // TEXT podczas logowania (pozwala wpisać nick), EMAIL podczas rejestracji
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="Adres e-mail"
+                placeholder={isLogin ? "Adres e-mail lub Nick" : "Adres e-mail"}
                 required
                 className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-500 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-colors"
               />
@@ -246,7 +246,7 @@ export default function AuthScreen() {
               </div>
             )}
 
-            {/* POTWIERDŹ HASŁO (tylko przy rejestracji) */}
+            {/* POTWIERDŹ HASŁO */}
             {!isLogin && !isResettingPassword && (
               <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -265,7 +265,7 @@ export default function AuthScreen() {
               </motion.div>
             )}
 
-            {/* LINK DO RESETU HASŁA (pod hasłem w logowaniu) */}
+            {/* LINK DO RESETU HASŁA */}
             {isLogin && !isResettingPassword && (
               <div className="flex justify-end mt-1">
                 <button 
@@ -288,7 +288,7 @@ export default function AuthScreen() {
             
           </form>
 
-          {/* DODATKOWE LINKI NA DOLE (Logowanie w rejestracji itd.) */}
+          {/* DODATKOWE LINKI */}
           <div className="mt-6 text-center text-sm text-slate-400">
             {isResettingPassword ? (
               <button 
