@@ -10,6 +10,7 @@ import Leaderboard from './components/Leaderboard';
 import { LogOut, BookOpen, X, Sparkles, Info, MessageSquare, HelpCircle, FileText, ChevronRight, ChevronLeft, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
+import InstallPrompt from './components/InstallPrompt';
 
 const FAQ_DATA = [
   { q: "Jak dołączyć do meczu?", a: "Wpisz 4-cyfrowy PIN, który poda Ci host, albo po prostu poproś go o wysłanie linku do gry." },
@@ -136,6 +137,7 @@ function MainApp() {
       </main>
 
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <InstallPrompt />
 
       {/* MODAL: POWITANIE DLA NOWEGO UŻYTKOWNIKA */}
       <AnimatePresence>
