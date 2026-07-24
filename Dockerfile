@@ -1,12 +1,16 @@
-# --- ETAP 1: Budowanie frontendu (React + Vite) ---
-FROM node:18-alpine AS frontend-builder
+# --- ETAP 1: Budowanie Frontendu (React + Vite) ---
+FROM node:20-alpine as frontend-builder
+
 WORKDIR /app/frontend
+
 COPY frontend/package*.json ./
 RUN npm install
+
 COPY frontend/ ./
 RUN npm run build
 
 # --- ETAP 2: Środowisko Python (Flask + Backend) ---
+# (Reszta Dockerfile zostaje bez zmian)
 FROM python:3.10-slim
 WORKDIR /app
 
