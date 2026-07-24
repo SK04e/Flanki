@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, X, Share, PlusSquare } from 'lucide-react';
+import { Download, X, Share, PlusSquare, MoreVertical } from 'lucide-react';
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -8,41 +8,39 @@ export default function InstallPrompt() {
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    // Sprawdzamy czy to iOS (Safari)
+    // Rozpoznajemy urządzenie
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIPhone = /iphone|ipad|ipod/.test(userAgent);
+    const isMobile = /iphone|ipad|ipod|android/.test(userAgent);
+    const isApple = /iphone|ipad|ipod/.test(userAgent);
     
     // Sprawdzamy czy apka już jest zainstalowana (standalone)
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
-    // Jeśli to iOS i apka nie jest zainstalowana -> pokazujemy instrukcję
-    if (isIPhone && !isStandalone) {
-      setIsIOS(true);
-      
-      // Pokazujemy z opóźnieniem (np. po 3 sekundach od wejścia)
-      const timer = setTimeout(() => setShowPrompt(true), 3000);
-      return () => clearTimeout(timer);
-    }
+    // Jeśli apka już jest zainstalowana lub to komputer -> nic nie pokazujemy
+    if (!isMobile || isStandalone) return;
 
-    // Dla Androida / Chrome wyłapujemy natywne zdarzenie przeglądarki
+    if (isApple) setIsIOS(true);
+
+    // Na telefonie ZAWSZE pokazujemy banner po 3 sekundach
+    const timer = setTimeout(() => setShowPrompt(true), 3000);
+
+    // Przechwytujemy automatyczny instalator Chrome/Android (jeśli przeglądarka na to pozwoli)
     const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault(); // Blokujemy chamski domyślny popup
-      setDeferredPrompt(e); // Zapisujemy zdarzenie na później
-      
-      // Pokazujemy nasz piękny popup po 3 sekundach
-      setTimeout(() => setShowPrompt(true), 3000);
+      e.preventDefault();
+      setDeferredPrompt(e);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt(); // Wywołujemy natywny instalator
+      deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setShowPrompt(false);
@@ -77,25 +75,42 @@ export default function InstallPrompt() {
             </button>
           </div>
 
+          {/* INSTRUKCJA DLA IOS (APPLE) */}
           {isIOS ? (
             <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 text-xs text-slate-300">
-              <p className="mb-2">Na iPhone musisz to zrobić ręcznie:</p>
               <ol className="space-y-2">
                 <li className="flex items-center gap-2">
-                  1. Kliknij ikonę Udostępnij <Share className="w-4 h-4 text-cyan-400 inline" /> na dolnym pasku.
+                  1. Kliknij Udostępnij <Share className="w-4 h-4 text-cyan-400 inline" /> na dolnym pasku.
                 </li>
                 <li className="flex items-center gap-2">
                   2. Wybierz <strong>Do ekranu początkowego</strong> <PlusSquare className="w-4 h-4 text-slate-400 inline" />
                 </li>
               </ol>
             </div>
-          ) : (
+          ) 
+          
+          /* PRZYCISK DLA ANDROIDA (Gdy instalator Chrome zadziałał) */
+          : deferredPrompt ? (
             <button 
               onClick={handleInstallClick}
               className="w-full bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black py-2.5 rounded-xl transition-all shadow-[0_0_15px_rgba(250,204,21,0.2)] text-sm"
             >
               Zainstaluj teraz
             </button>
+          ) 
+          
+          /* AWARYJNA INSTRUKCJA DLA ANDROIDA (Gdy instalator Chrome zablokował przycisk) */
+          : (
+            <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 text-xs text-slate-300">
+              <ol className="space-y-2">
+                <li className="flex items-center gap-2">
+                  1. Kliknij menu <MoreVertical className="w-4 h-4 text-cyan-400 inline" /> w prawym górnym rogu.
+                </li>
+                <li>
+                  2. Wybierz opcję <strong>Zainstaluj aplikację</strong> lub <strong>Dodaj do ekranu głównego</strong>.
+                </li>
+              </ol>
+            </div>
           )}
         </div>
       </motion.div>
